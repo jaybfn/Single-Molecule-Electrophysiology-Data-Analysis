@@ -4,44 +4,56 @@ import plotly.graph_objects as go
 from scipy.ndimage import gaussian_filter1d
 import numpy as np
 import pandas as pd
+import os
 
 class ReadingData:
     """
     A class used to represent the ReadingData process.
-    ...
 
     Attributes
     ----------
-    abf : object
-        a pyabf.ABF object that contains the data from the ABF file
+    data : object
+        An object that contains the data from the file, can be a DataFrame or pyabf.ABF object.
 
     Methods
     -------
     get_data():
-        Returns the abf object that contains the data from the ABF file.
+        Returns the data object that contains the data from the file.
     """
 
     def __init__(self, file_path):
         """
         Constructs all the necessary attributes for the ReadingData object.
+
         Parameters
         ----------
             file_path : str
-                The file path of the ABF file to be read.
+                The file path of the file to be read.
         """
 
-        self.abf = pyabf.ABF(file_path)  # Load the ABF file
+        # Check the file extension
+        _, file_extension = os.path.splitext(file_path)
+
+        if file_extension.lower() == ".abf":
+            # Load the ABF file
+            self.data = pyabf.ABF(file_path)
+        elif file_extension.lower() == ".csv":
+            # Load the CSV file
+            self.data = pd.read_csv(file_path)
+        else:
+            raise ValueError(f"Unsupported file format: {file_extension}")
 
     def get_data(self):
         """
-        Retrieves the ABF data loaded during the initialization of the object.
+        Retrieves the data loaded during the initialization of the object.
+
         Returns
         -------
         object
-            a pyabf.ABF object containing the data from the ABF file
+            The data object containing the data from the file, can be a DataFrame or pyabf.ABF object.
         """
 
-        return self.abf  # Return the ABF data object
+        return self.data
 
 class CreatingChunks:
     """
@@ -189,73 +201,6 @@ class EventDetection:
         return events_data  # Return the recorded events
 
 
-# class Plotting:
-#     """
-#     A class used for plotting data chunks and events.
-
-#     ...
-
-#     Methods
-#     -------
-#     plot_data(data_time, data_chunk, events_data, sigma=1.5):
-#         Plots the signal, smoothed signal, and events on a graph.
-#     """
-
-#     @staticmethod
-#     def plot_data(data_time, data_chunk, events_data, sigma=1.5):
-#         """
-#         Plots the data chunk, smoothed data, mean, standard deviation, and events.
-
-#         This static method takes the time and amplitude of the data points in a chunk,
-#         along with detected events, and plots them. It shows the original signal, a smoothed version,
-#         the mean, specific multiples of the standard deviation, and marks the start and end of events.
-
-#         Parameters
-#         ----------
-#         data_time : ndarray
-#             An array containing the time points corresponding to the data_chunk.
-#         data_chunk : ndarray
-#             An array containing a segment of the continuous data.
-#         events_data : list
-#             A list of dictionaries, each containing details of an event (event number, start time, end time, and duration).
-#         sigma : float, optional
-#             The standard deviation for the Gaussian kernel used in smoothing (default is 1.5).
-
-#         Returns
-#         -------
-#         None
-#         """
-
-#         # Apply Gaussian filter to smooth the data
-#         smoothed_data = gaussian_filter1d(data_chunk, sigma=sigma)
-
-#         # Plot the original signal and the smoothed signal
-#         plt.plot(data_time, smoothed_data, label="Smoothed Signal")
-#         plt.plot(data_time, data_chunk, label="Signal")
-
-#         # Calculate mean and standard deviation of the data chunk
-#         mean = np.mean(data_chunk)
-#         std_dev = np.std(data_chunk)
-
-#         # Plot the mean, 0.5x standard deviation, and 2.25x standard deviation
-#         plt.axhline(y=mean, color='r', linestyle='-', label="Mean")
-#         plt.axhline(y=mean - 0.5 * std_dev, color='b', linestyle='-', label="0.5x Std Dev")
-#         plt.axhline(y=mean - 2.25 * std_dev, color='g', linestyle='--', label="2.25x Std Dev")
-
-#         # Mark the start and end of events on the plot
-#         for event in events_data:
-#             start_time = event['start_time']
-#             end_time = event['end_time']
-#             # Convert data_time array to list for indexing
-#             time_list = data_time.tolist()
-#             # Plot black circles at the start and end times of the events
-#             plt.plot(start_time, data_chunk[time_list.index(start_time)], 'ko')
-#             plt.plot(end_time, data_chunk[time_list.index(end_time)], 'ko')
-
-#         # Display the legend and show the plot
-#         plt.legend()
-#         plt.show()
-
 class Plotting:
     """
     A class used for plotting data chunks and events.
@@ -271,27 +216,43 @@ class Plotting:
     @staticmethod
     def plot_data(data_time, data_chunk, events_data, sigma=1.5):
         """
-        [Previous docstring content]
+        Plots the data chunk, smoothed data, mean, standard deviation, and events.
+
+        This static method takes the time and amplitude of the data points in a chunk,
+        along with detected events, and plots them. It shows the original signal, a smoothed version,
+        the mean, specific multiples of the standard deviation, and marks the start and end of events.
+
+        Parameters
+        ----------
+        data_time : ndarray
+            An array containing the time points corresponding to the data_chunk.
+        data_chunk : ndarray
+            An array containing a segment of the continuous data.
+        events_data : list
+            A list of dictionaries, each containing details of an event (event number, start time, end time, and duration).
+        sigma : float, optional
+            The standard deviation for the Gaussian kernel used in smoothing (default is 1.5).
+
+        Returns
+        -------
+        None
         """
 
         # Apply Gaussian filter to smooth the data
         smoothed_data = gaussian_filter1d(data_chunk, sigma=sigma)
 
-        # Create figure
-        fig = go.Figure()
-
-        # Add original signal and smoothed signal to plot
-        fig.add_trace(go.Scatter(x=data_time, y=data_chunk, mode='lines', name='Signal'))
-        fig.add_trace(go.Scatter(x=data_time, y=smoothed_data, mode='lines', name='Smoothed Signal'))
+        # Plot the original signal and the smoothed signal
+        plt.plot(data_time, smoothed_data, label="Smoothed Signal")
+        plt.plot(data_time, data_chunk, label="Signal")
 
         # Calculate mean and standard deviation of the data chunk
         mean = np.mean(data_chunk)
         std_dev = np.std(data_chunk)
 
-        # Add lines for mean, 0.5x standard deviation, and 2.25x standard deviation
-        fig.add_hline(y=mean, line=dict(color="Red", width=2), name="Mean")
-        fig.add_hline(y=mean - 0.5 * std_dev, line=dict(color="Blue", width=2, dash='dash'), name="0.5x Std Dev")
-        fig.add_hline(y=mean - 2.25 * std_dev, line=dict(color="Green", width=2, dash='dot'), name="2.25x Std Dev")
+        # Plot the mean, 0.5x standard deviation, and 2.25x standard deviation
+        plt.axhline(y=mean, color='r', linestyle='-', label="Mean")
+        plt.axhline(y=mean - 0.25 * std_dev, color='b', linestyle='-', label="0.5x Std Dev")
+        plt.axhline(y=mean - 1.5 * std_dev, color='g', linestyle='--', label="2.25x Std Dev")
 
         # Mark the start and end of events on the plot
         for event in events_data:
@@ -299,27 +260,21 @@ class Plotting:
             end_time = event['end_time']
             # Convert data_time array to list for indexing
             time_list = data_time.tolist()
-            # Add markers for the start and end times of the events
-            fig.add_trace(go.Scatter(x=[start_time], y=[data_chunk[time_list.index(start_time)]],
-                                    mode='markers', marker=dict(color='Black', size=10),
-                                    name=f"Start Event {events_data.index(event)}"))
-            fig.add_trace(go.Scatter(x=[end_time], y=[data_chunk[time_list.index(end_time)]],
-                                    mode='markers', marker=dict(color='Black', size=10),
-                                    name=f"End Event {events_data.index(event)}"))
+            # Plot black circles at the start and end times of the events
+            plt.plot(start_time, data_chunk[time_list.index(start_time)], 'ko')
+            plt.plot(end_time, data_chunk[time_list.index(end_time)], 'ko')
 
-        # Update layout properties
-        fig.update_layout(title='Data with Events',
-                        xaxis_title='Time',
-                        yaxis_title='Amplitude')
+        # Display the legend and show the plot
+        plt.legend()
+        plt.show()
 
-        # Display figure
-        fig.show()
+
 if __name__ == "__main__":
     reader = ReadingData("../data/2019_04_03_0006.abf")
     abf = reader.get_data()
 
     chunker = CreatingChunks(abf)
-    detector = EventDetection(std_multiplier=0.5, threshold_multiplier=2.5)
+    detector = EventDetection(std_multiplier=0.25, threshold_multiplier=1.5)
 
     all_events = []
 
@@ -337,6 +292,8 @@ if __name__ == "__main__":
 
     events_df = pd.DataFrame(all_events)
     print(events_df)
+    
+    ind = ((all_events[100]['end_time']+(((all_events[100]['end_time'])/100))*2) * 50000)
 
     plotter = Plotting()
-    plotter.plot_data(sweep_time, sweep_data, all_events)
+    plotter.plot_data(sweep_time[:int(ind)], sweep_data[:int(ind)], all_events[:100])
