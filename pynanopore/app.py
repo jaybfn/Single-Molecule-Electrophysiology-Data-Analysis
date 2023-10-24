@@ -4,7 +4,7 @@ import pandas as pd
 import os
 import pyabf
 
-from even_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
+from pynanopore.event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
 
 # Function to load and process your data
 def process_data(file_path):
