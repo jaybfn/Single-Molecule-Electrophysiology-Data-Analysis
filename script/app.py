@@ -13,64 +13,77 @@ def process_data(file_path):
 
     all_events = []
 
-    # Check if the data is from an ABF file or a CSV file
-    if isinstance(data, pyabf.ABF):
-        chunker = CreatingChunks(data)
-        detector = EventDetection(std_multiplier=0.5, threshold_multiplier=2.5)
+    chunker = CreatingChunks(data)
+    detector = EventDetection(std_multiplier=0.5, threshold_multiplier=2.5)
 
-        for sweepNumber in data.sweepList:
-            data.setSweep(sweepNumber)
-            sweep_data = data.sweepY * (-1)
-            sweep_time = data.sweepX
+    for sweepNumber in data.sweepList:
+        data.setSweep(sweepNumber)
+        sweep_data = data.sweepY * (-1)
+        sweep_time = data.sweepX
 
-            for chunk_start in range(0, len(sweep_data), chunker.points_per_interval):
-                chunk_end = chunk_start + chunker.points_per_interval
-                data_chunk = sweep_data[chunk_start:chunk_end]
-                time_chunk = sweep_time[chunk_start:chunk_end]
-                events_data = detector.detect_events(data_chunk, time_chunk)
-                all_events.extend(events_data)
-            
-        events_df = pd.DataFrame(all_events)
-        return sweep_time, sweep_data, all_events, events_df
-
-    elif isinstance(data, pd.DataFrame):
-        # If the data is from a CSV file, you'll need to extract and process the data differently.
-        # This is just a placeholder, you need to adjust the processing depending on how the CSV is structured.
-        # For example:
-        sweep_time = data['time_column']  # Adjust 'time_column' to your actual time column name
-        sweep_data = data['data_column']*(-1)  # Adjust 'data_column' to your actual data column name
-
-        # Here you should add your logic for event detection based on your CSV data
-        # all_events = your_csv_event_detection_logic(sweep_time, sweep_data)
-
-        events_df = pd.DataFrame(all_events)
-        return sweep_time, sweep_data, all_events, events_df
-    else:
-        raise ValueError("Unsupported data type")
+        for chunk_start in range(0, len(sweep_data), chunker.points_per_interval):
+            chunk_end = chunk_start + chunker.points_per_interval
+            data_chunk = sweep_data[chunk_start:chunk_end]
+            time_chunk = sweep_time[chunk_start:chunk_end]
+            events_data = detector.detect_events(data_chunk, time_chunk)
+            all_events.extend(events_data)
+        
+    events_df = pd.DataFrame(all_events)
+    ind = ((all_events[100]['end_time']+(((all_events[100]['end_time'])/100))*2) * 50000)
+    return sweep_time[:int(ind)], sweep_data[:int(ind)], all_events[:100], events_df
 
 # Main function for Streamlit app
 def main():
-    st.title('ABF File Data Visualization')
+    st.title('Single Molecule Electrophysiology Analysis')
 
     # Folder selector
-    folder_path = st.text_input('Enter folder path here:')
-    if folder_path:
-        files = os.listdir(folder_path)
-        selected_file = st.selectbox("Choose a file from the folder:", files)
-        if selected_file:
-            data_file = os.path.join(folder_path, selected_file)
+    with st.sidebar:
+        folder_path = st.text_input('Enter folder path here:')
+        if folder_path:
+            files = os.listdir(folder_path)
+            selected_file = st.selectbox("Choose a file from the folder:", files)
+    if selected_file:
+        data_file = os.path.join(folder_path, selected_file)
+        
+        with st.container():
+            col1, col2 = st.columns(2)
 
-            try:
-                sweep_time, sweep_data, all_events, events_df = process_data(data_file)
-                st.write(events_df)  # Display the events data as a table in Streamlit
+            with col1:
+                try:
 
-                # Use your plotter to display the plot
-                plotter = Plotting()
-                plot_figure = plotter.plot_data(sweep_time, sweep_data, all_events)
-                st.plotly_chart(plot_figure)
+                    st.markdown("Ion Current Trace:")
+                    sweep_time, sweep_data, all_events, events_df = process_data(data_file)
+                    #st.write(events_df)  # Display the events data as a table in Streamlit
 
-            except Exception as e:
-                st.write("Error: ", e)
+                    # Use your plotter to display the plot
+                    plotter = Plotting()
+                    plot_figure = plotter.plot_data_series(sweep_time, sweep_data)
+                    st.plotly_chart(plot_figure)
+
+                except Exception as e:
+                    st.write("Error: ", e)
+
+            with col2:
+                try:
+
+                    st.markdown("Ion Current Trace With Detected Events:")
+
+                    # Use your plotter to display the plot
+                    plotter = Plotting()
+                    plot_figure = plotter.plot_data(sweep_time, sweep_data, all_events)
+                    st.plotly_chart(plot_figure)
+
+                except Exception as e:
+                    st.write("Error: ", e)
 
 if __name__ == "__main__":
+    # setting the page configuration
+    base="dark"
+    primaryColor="purple"
+    # Setting the page config first
+    st.set_page_config(
+        page_title="Real-Time Forex Dashboard",
+        page_icon="icon.jpg",
+        layout="wide"
+    )
     main()
