@@ -6,6 +6,7 @@ import pyabf
 
 #from pynanopore.event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
 from event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
+from powerspectrum import PSDAnalyzer, LorentzianFitter
 
 # Function to load and process your data
 def process_data(file_path):
@@ -39,43 +40,67 @@ def main():
 
     # Folder selector
     with st.sidebar:
+        selected_file = None
         folder_path = st.text_input('Enter folder path here:')
-        if folder_path:
+        if folder_path and os.path.isdir(folder_path):  # Check if it's a valid directory
             files = os.listdir(folder_path)
-            selected_file = st.selectbox("Choose a file from the folder:", files)
+            if files:  # Check if the directory has any files
+                selected_file = st.selectbox("Choose a file from the folder:", files)
+            else:
+                st.warning("The provided directory is empty!")
     if selected_file:
         data_file = os.path.join(folder_path, selected_file)
         
-        with st.container():
-            col1, col2 = st.columns(2)
+        event_detection, power_spectrum = st.tabs(['Event Detection','Power Spectrum Analysis'])
 
-            with col1:
-                try:
+        with event_detection:
+            with st.container():
+                col1, col2 = st.columns(2)
 
-                    st.markdown("Ion Current Trace:")
-                    sweep_time, sweep_data, all_events, events_df = process_data(data_file)
-                    #st.write(events_df)  # Display the events data as a table in Streamlit
+                with col1:
+                    try:
 
-                    # Use your plotter to display the plot
-                    plotter = Plotting()
-                    plot_figure = plotter.plot_data_series(sweep_time, sweep_data)
-                    st.plotly_chart(plot_figure)
+                        st.markdown("Ion Current Trace:")
+                        sweep_time, sweep_data, all_events, events_df = process_data(data_file)
+                        #st.write(events_df)  # Display the events data as a table in Streamlit
 
-                except Exception as e:
-                    st.write("Error: ", e)
+                        # Use your plotter to display the plot
+                        plotter = Plotting()
+                        plot_figure = plotter.plot_data_series(sweep_time, sweep_data)
+                        st.plotly_chart(plot_figure)
 
-            with col2:
-                try:
+                    except Exception as e:
+                        st.write("Error: ", e)
 
-                    st.markdown("Ion Current Trace With Detected Events:")
+                with col2:
+                    try:
 
-                    # Use your plotter to display the plot
-                    plotter = Plotting()
-                    plot_figure = plotter.plot_data(sweep_time, sweep_data, all_events)
-                    st.plotly_chart(plot_figure)
+                        st.markdown("Ion Current Trace With Detected Events:")
 
-                except Exception as e:
-                    st.write("Error: ", e)
+                        # Use your plotter to display the plot
+                        plotter = Plotting()
+                        plot_figure = plotter.plot_data(sweep_time, sweep_data, all_events)
+                        st.plotly_chart(plot_figure)
+
+                    except Exception as e:
+                        st.write("Error: ", e)
+
+        with power_spectrum:
+
+            st.text('Comming Soon ...!')
+            with st.container():
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    # First, compute the power spectrum
+                    abf = pyabf.ABF("../data/2019_04_03_0006.abf")
+                    time_series = sweep_data = abf.sweepY
+                    current_data = time_series
+                    analyzer = PSDAnalyzer(fs=50000)
+                    frequencies, power_spectrum = analyzer.compute_psd_with_hamming(current_data)
+
+
+
 
 if __name__ == "__main__":
     # setting the page configuration
