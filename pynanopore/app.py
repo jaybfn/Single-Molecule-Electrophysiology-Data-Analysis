@@ -1,6 +1,8 @@
 import streamlit as st
 import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 import os
 import pyabf
 
@@ -87,19 +89,28 @@ def main():
 
         with power_spectrum:
 
-            st.text('Comming Soon ...!')
             with st.container():
                 col1, col2 = st.columns(2)
 
                 with col1:
                     # First, compute the power spectrum
-                    abf = pyabf.ABF("../data/2019_04_03_0006.abf")
-                    time_series = sweep_data = abf.sweepY
-                    current_data = time_series
                     analyzer = PSDAnalyzer(fs=50000)
-                    frequencies, power_spectrum = analyzer.compute_psd_with_hamming(current_data)
+                    frequencies, power_spectrum = analyzer.compute_psd_with_hamming(sweep_data)
+                    psd_plot = analyzer._plot_psd(frequencies,power_spectrum)
+                    st.plotly_chart(psd_plot)
+                
+                with col2:
 
-
+                    lorentzian_fitter = LorentzianFitter(frequencies, power_spectrum)
+                    lorentzian_fitter.fit_lorentzian()
+                    psd_plot_fit = lorentzian_fitter.plot_fit(frequencies, power_spectrum)
+                    st.plotly_chart(psd_plot_fit)
+                    # fitting params
+                    fit1, fit2, fit3 = st.columns(3)
+                    with fit1:
+                        st.text(f"S(0) : {round(lorentzian_fitter.S_0_opt,2)} pA^2/Hz")
+                    with fit2:
+                        st.text(f"fc : {round(lorentzian_fitter.f_c_opt,2)} Hz")
 
 
 if __name__ == "__main__":

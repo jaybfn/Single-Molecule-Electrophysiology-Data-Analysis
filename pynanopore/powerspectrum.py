@@ -51,7 +51,7 @@ class PSDAnalyzer:
         power_spectrum = power_spectrum[2:]
 
         # Plotting
-        self._plot_psd(frequencies, power_spectrum)
+        #self._plot_psd(frequencies, power_spectrum)
 
         return frequencies, power_spectrum
 
@@ -70,12 +70,12 @@ class PSDAnalyzer:
         # Add line plot for the power spectrum
         fig.add_trace(go.Scatter(x=frequencies, 
                                 y=power_spectrum, 
-                                mode='lines', 
+                                mode='lines',
                                 line=dict(color='rgb(0,0,255)')))
         
         # Update the layout
         fig.update_layout(
-            title='One-sided Power Spectrum with Hamming Window (Welch, Excluding First 2 Bins)',
+            title='Power Spectrum with Hamming Window',
             xaxis=dict(type='log', title='Frequency (Hz)', range=[np.log10(frequencies[0]), np.log10(50000)]),
             yaxis=dict(type='log', title='Power Spectrum (pA^2/Hz)'),
             hovermode='closest',
@@ -86,7 +86,7 @@ class PSDAnalyzer:
             yaxis_gridwidth=1)
         
         # Show the figure
-        fig.show()
+        return fig
 
 
 class LorentzianFitter:
@@ -188,14 +188,14 @@ class LorentzianFitter:
         
         # Update the layout
         fig.update_layout(
-            title='Power Spectrum Data with Constrained Optimized Lorentzian Power-1 Fit on Log-Log Scale',
+            title='Power Spectrum Data with Lorentzian Power-1 Fit on Log-Log Scale',
             xaxis=dict(type='log', title='Frequency (Hz)', range=[np.log10(frequencies[2]), np.log10(10000)]),
             yaxis=dict(type='log', title='Amplitude (pA^2/Hz)'),
             hovermode='closest'
         )
         
         # Show the figure
-        fig.show()
+        return fig
 
 if __name__ == '__main__':
 

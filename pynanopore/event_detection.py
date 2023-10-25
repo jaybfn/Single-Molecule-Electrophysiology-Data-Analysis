@@ -228,17 +228,29 @@ class Plotting:
 
         # Create figure and add traces
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=data_time_list, y=smoothed_data, mode='lines', name='Smoothed Signal'))
-        fig.add_trace(go.Scatter(x=data_time_list, y=data_chunk_list, mode='lines', name='Signal'))
+        fig.add_trace(go.Scatter(x=data_time_list, 
+                                y=smoothed_data, 
+                                mode='lines', 
+                                name='Smoothed Signal'))
+        fig.add_trace(go.Scatter(x=data_time_list, 
+                                y=data_chunk_list, 
+                                mode='lines', 
+                                name='Signal'))
 
         # Calculate mean and standard deviation of the data chunk
         mean = np.mean(data_chunk)
         std_dev = np.std(data_chunk)
 
         # Add horizontal lines for mean and standard deviations
-        fig.add_hline(y=mean, line=dict(color="red", width=2), name="Mean")
-        fig.add_hline(y=mean - 0.25 * std_dev, line=dict(color="blue", width=2, dash="dash"), name="0.5x Std Dev")
-        fig.add_hline(y=mean - 1.5 * std_dev, line=dict(color="green", width=2, dash="dot"), name="2.25x Std Dev")
+        fig.add_hline(y=mean, 
+                    line=dict(color="red", width=2), 
+                    name="Mean")
+        fig.add_hline(y=mean - 0.25 * std_dev, 
+                    line=dict(color="blue", width=2, dash="dash"), 
+                    name="0.5x Std Dev")
+        fig.add_hline(y=mean - 1.5 * std_dev, 
+                    line=dict(color="green", width=2, dash="dot"), 
+                    name="2.25x Std Dev")
 
         # Mark the start and end of events on the plot
         for event in events_data:
