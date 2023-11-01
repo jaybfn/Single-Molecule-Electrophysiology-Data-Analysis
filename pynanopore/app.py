@@ -89,9 +89,17 @@ def main():
                         st.write("Error: ", e)
 
         with statistical_analysis:
+
+            col1, col2,col3,col4,col5 = st.columns(5)
+            with col1:
+                options = st.selectbox("Exponential Fit Options (Single or Double)?", 
+                                            ('single', 'double'),
+                                            index = 0,
+                                            placeholder = "Select Fit Options")
     
             with st.container():
                 col1, col2 = st.columns(2)
+                
 
                 with col1:
 
@@ -101,28 +109,66 @@ def main():
 
                 with col2:
                     
+                    
+                    if options == 'single':
+                        fit = DwellTime_ExponentialFit(events_df)  # Create instance of the class
+                        fit.fit_data('single')  # Fit the data
+                        hist_fit = fit.plot_data('single')  # Plot the data
+                        st.plotly_chart(hist_fit)
+                        parms = fit.print_parameters('single')
 
-                    fit = DwellTime_ExponentialFit(events_df)  # Create instance of the class
-                    fit.fit_data('single')  # Fit the data
-                    hist_fit = fit.plot_data('single')  # Plot the data
-                    st.plotly_chart(hist_fit)
-                    parms = fit.print_parameters('single')
+                        with st.container():
+                            fit1, fit2, fit3 = st.columns(3)
+                            with fit1:
+                                st.markdown(f"""
+                                    <div style="font-size: 24px">
+                                        <strong>a :</strong> {round(parms[0],4)} 
+                                    </div>
+                                """, unsafe_allow_html=True)
 
-                    with st.container():
-                        fit1, fit2, fit3 = st.columns(3)
-                        with fit1:
-                            st.markdown(f"""
-                                <div style="font-size: 24px">
-                                    <strong>a :</strong> {round(parms[0],4)} 
-                                </div>
-                            """, unsafe_allow_html=True)
+                            with fit2:
+                                st.markdown(f"""
+                                    <div style="font-size: 24px">
+                                        <strong>tau :</strong> {round(parms[1],4)}
+                                    </div>
+                                """, unsafe_allow_html=True)
 
-                        with fit2:
-                            st.markdown(f"""
-                                <div style="font-size: 24px">
-                                    <strong>tau :</strong> {round(parms[1],4)}
-                                </div>
-                            """, unsafe_allow_html=True)
+                    elif options == 'double':
+                        st.text('testing!')
+                        fit = DwellTime_ExponentialFit(events_df)  # Create instance of the class
+                        fit.fit_data('double')  # Fit the data
+                        hist_fit = fit.plot_data('double')  # Plot the data
+                        st.plotly_chart(hist_fit)
+                        parms = fit.print_parameters('double')
+
+                        with st.container():
+                            fit1, fit2, fit3, fit4 = st.columns(4)
+                            with fit1:
+                                st.markdown(f"""
+                                    <div style="font-size: 20px">
+                                        <strong>a1 :</strong> {round(parms[0],4)} 
+                                    </div>
+                                """, unsafe_allow_html=True)
+
+                            with fit2:
+                                st.markdown(f"""
+                                    <div style="font-size: 20px">
+                                        <strong>tau1 :</strong> {round(parms[1],4)}
+                                    </div>
+                                """, unsafe_allow_html=True)
+
+                            with fit3:
+                                st.markdown(f"""
+                                    <div style="font-size: 20px">
+                                        <strong>a2 :</strong> {round(parms[2],4)}
+                                    </div>
+                                """, unsafe_allow_html=True)
+                            with fit4:
+                                st.markdown(f"""
+                                    <div style="font-size: 20px">
+                                        <strong>tau2 :</strong> {round(parms[3],4)}
+                                    </div>
+                                """, unsafe_allow_html=True)
 
         with power_spectrum:
 
