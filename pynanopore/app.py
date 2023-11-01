@@ -9,6 +9,7 @@ import pyabf
 #from pynanopore.event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
 from event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
 from powerspectrum import PSDAnalyzer, LorentzianFitter
+from dwelltime import DwellTime_ExponentialFit
 
 # Function to load and process your data
 def process_data(file_path):
@@ -53,7 +54,7 @@ def main():
     if selected_file:
         data_file = os.path.join(folder_path, selected_file)
         
-        event_detection, power_spectrum = st.tabs(['Event Detection','Power Spectrum Analysis'])
+        event_detection,statistical_analysis, power_spectrum = st.tabs(['Event Detection','Statistical Analysis','Power Spectrum Analysis'])
 
         with event_detection:
             with st.container():
@@ -87,6 +88,42 @@ def main():
                     except Exception as e:
                         st.write("Error: ", e)
 
+        with statistical_analysis:
+    
+            with st.container():
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    fit = DwellTime_ExponentialFit(events_df)
+                    hist= fit.plot_hist_data()
+                    st.plotly_chart(hist)
+
+                with col2:
+                    
+
+                    fit = DwellTime_ExponentialFit(events_df)  # Create instance of the class
+                    fit.fit_data('single')  # Fit the data
+                    hist_fit = fit.plot_data('single')  # Plot the data
+                    st.plotly_chart(hist_fit)
+                    parms = fit.print_parameters('single')
+
+                    with st.container():
+                        fit1, fit2, fit3 = st.columns(3)
+                        with fit1:
+                            st.markdown(f"""
+                                <div style="font-size: 24px">
+                                    <strong>a :</strong> {round(parms[0],4)} 
+                                </div>
+                            """, unsafe_allow_html=True)
+
+                        with fit2:
+                            st.markdown(f"""
+                                <div style="font-size: 24px">
+                                    <strong>tau :</strong> {round(parms[1],4)}
+                                </div>
+                            """, unsafe_allow_html=True)
+
         with power_spectrum:
 
             with st.container():
@@ -106,24 +143,22 @@ def main():
                     psd_plot_fit = lorentzian_fitter.plot_fit(frequencies, power_spectrum)
                     st.plotly_chart(psd_plot_fit)
                     # fitting params
-                    fit1, fit2, fit3 = st.columns(3)
-                    # with fit1:
-                    #     st.text(f"S(0) : {round(lorentzian_fitter.S_0_opt,2)} pA^2/Hz")
-                    # with fit2:
-                    #     st.text(f"fc : {round(lorentzian_fitter.f_c_opt,2)} Hz")
-                    with fit1:
-                        st.markdown(f"""
-                            <div style="font-size: 24px">
-                                <strong>S(0) :</strong> {round(lorentzian_fitter.S_0_opt,2)} pA^2/Hz
-                            </div>
-                        """, unsafe_allow_html=True)
+                    with st.container():
+                        fit1, fit2, fit3 = st.columns(3)
 
-                    with fit2:
-                        st.markdown(f"""
-                            <div style="font-size: 24px">
-                                <strong>fc :</strong> {round(lorentzian_fitter.f_c_opt,2)} Hz
-                            </div>
-                        """, unsafe_allow_html=True)
+                        with fit1:
+                            st.markdown(f"""
+                                <div style="font-size: 24px">
+                                    <strong>S(0) :</strong> {round(lorentzian_fitter.S_0_opt,2)} pA^2/Hz
+                                </div>
+                            """, unsafe_allow_html=True)
+
+                        with fit2:
+                            st.markdown(f"""
+                                <div style="font-size: 24px">
+                                    <strong>fc :</strong> {round(lorentzian_fitter.f_c_opt,2)} Hz
+                                </div>
+                            """, unsafe_allow_html=True)
 
 
 

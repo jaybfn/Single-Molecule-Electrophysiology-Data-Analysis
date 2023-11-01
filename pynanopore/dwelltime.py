@@ -4,7 +4,7 @@ from scipy.optimize import curve_fit
 import plotly.graph_objects as go
 from event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
 
-class ExponentialFit:
+class DwellTime_ExponentialFit:
     def __init__(self, events_df: pd.DataFrame, bins: int = 250) -> None:
         """Initialize the ExponentialFit class."""
         self.events_df = events_df
@@ -46,12 +46,11 @@ class ExponentialFit:
         fig.add_trace(go.Bar(x=self.bin_centers, y=self.hist, name="Histogram"))
 
         fig.update_layout(
-            title="Histogram with Exponential Fit",
+            title="Dwell Time Histogram",
             xaxis_title="Dwell Time (s)",
             yaxis_title="Counts"
         )
-        fig.show()
-
+        return fig
 
     def plot_data(self, fit_type: str) -> None:
         """Plot the histogram and the fits using Plotly based on fit_type."""
@@ -74,16 +73,25 @@ class ExponentialFit:
             xaxis_title="Dwell Time (s)",
             yaxis_title="Counts"
         )
-        fig.show()
+        return fig
 
     def print_parameters(self, fit_type: str) -> None:
         """Print the fitting parameters based on fit_type."""
         if fit_type == 'single':
-            print(f"Single Exponential Parameters: a = {self.params_single[0]:.4f}, b = {self.params_single[1]:.4f}")
+            #print(f"Single Exponential Parameters: a = {self.params_single[0]:.4f}, b = {self.params_single[1]:.4f}")
+            a = self.params_single[0]
+            b = self.params_single[1]
+            return a, b
         elif fit_type == 'double':
-            print(f"Double Exponential Parameters: a = {self.params_double[0]:.4f}, b = {self.params_double[1]:.4f}, c = {self.params_double[2]:.4f}, d = {self.params_double[3]:.4f}")
+            #print(f"Double Exponential Parameters: a = {self.params_double[0]:.4f}, b = {self.params_double[1]:.4f}, c = {self.params_double[2]:.4f}, d = {self.params_double[3]:.4f}")
+            a = self.params_double[0]
+            b = self.params_double[1]
+            c = self.params_double[2]
+            d = self.params_double[2]
+            return a, b, c,d
         else:
             raise ValueError("fit_type must be either 'single' or 'double'")
+        
 
 if __name__ == "__main__":
 
@@ -110,7 +118,7 @@ if __name__ == "__main__":
     events_df = pd.DataFrame(all_events)
     #print(events_df)
 
-    fit = ExponentialFit(events_df)
+    fit = DwellTime_ExponentialFit(events_df)
     fit.fit_data('single')
     fit.plot_hist_data()
     fit.plot_data('single')
