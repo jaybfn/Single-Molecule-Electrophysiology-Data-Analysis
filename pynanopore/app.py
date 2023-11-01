@@ -107,10 +107,24 @@ def main():
                     st.plotly_chart(psd_plot_fit)
                     # fitting params
                     fit1, fit2, fit3 = st.columns(3)
+                    # with fit1:
+                    #     st.text(f"S(0) : {round(lorentzian_fitter.S_0_opt,2)} pA^2/Hz")
+                    # with fit2:
+                    #     st.text(f"fc : {round(lorentzian_fitter.f_c_opt,2)} Hz")
                     with fit1:
-                        st.text(f"S(0) : {round(lorentzian_fitter.S_0_opt,2)} pA^2/Hz")
+                        st.markdown(f"""
+                            <div style="font-size: 24px">
+                                <strong>S(0) :</strong> {round(lorentzian_fitter.S_0_opt,2)} pA^2/Hz
+                            </div>
+                        """, unsafe_allow_html=True)
+
                     with fit2:
-                        st.text(f"fc : {round(lorentzian_fitter.f_c_opt,2)} Hz")
+                        st.markdown(f"""
+                            <div style="font-size: 24px">
+                                <strong>fc :</strong> {round(lorentzian_fitter.f_c_opt,2)} Hz
+                            </div>
+                        """, unsafe_allow_html=True)
+
 
 
 if __name__ == "__main__":
