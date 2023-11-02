@@ -5,8 +5,8 @@ with open('README.md') as f:
 
 
 setup(
-    name="PyNanoPore",
-    version="0.0.3",
+    name="pynanopore",
+    version="1.0.0",
     packages=['pynanopore'],
     long_description = long_description,
     long_description_content_type = "text/markdown",
