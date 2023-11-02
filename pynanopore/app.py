@@ -23,19 +23,38 @@ def process_data(file_path):
 
     for sweepNumber in data.sweepList:
         data.setSweep(sweepNumber)
-        sweep_data = data.sweepY * (-1)
-        sweep_time = data.sweepX
+        if data.sweepY.mean() > 0:
+            sweep_data = data.sweepY 
+            sweep_time = data.sweepX
 
-        for chunk_start in range(0, len(sweep_data), chunker.points_per_interval):
-            chunk_end = chunk_start + chunker.points_per_interval
-            data_chunk = sweep_data[chunk_start:chunk_end]
-            time_chunk = sweep_time[chunk_start:chunk_end]
-            events_data = detector.detect_events(data_chunk, time_chunk)
-            all_events.extend(events_data)
-        
-    events_df = pd.DataFrame(all_events)
-    ind = ((all_events[100]['end_time']+(((all_events[100]['end_time'])/100))*2) * 50000)
-    return sweep_time[:int(ind)], sweep_data[:int(ind)], all_events[:100], events_df
+            for chunk_start in range(0, len(sweep_data), chunker.points_per_interval):
+                chunk_end = chunk_start + chunker.points_per_interval
+                data_chunk = sweep_data[chunk_start:chunk_end]
+                time_chunk = sweep_time[chunk_start:chunk_end]
+                events_data = detector.detect_events(data_chunk, time_chunk)
+                all_events.extend(events_data)
+            
+            events_df = pd.DataFrame(all_events)
+            ind = ((all_events[100]['end_time']+(((all_events[100]['end_time'])/100))*2) * 50000)
+            return sweep_time[:int(ind)], sweep_data[:int(ind)], all_events[:100], events_df
+
+        else:
+
+            sweep_data = data.sweepY * (-1)
+            sweep_time = data.sweepX
+
+            for chunk_start in range(0, len(sweep_data), chunker.points_per_interval):
+                chunk_end = chunk_start + chunker.points_per_interval
+                data_chunk = sweep_data[chunk_start:chunk_end]
+                time_chunk = sweep_time[chunk_start:chunk_end]
+                events_data = detector.detect_events(data_chunk, time_chunk)
+                all_events.extend(events_data)
+            
+            events_df = pd.DataFrame(all_events)
+            ind = ((all_events[100]['end_time']+(((all_events[100]['end_time'])/100))*2) * 50000)
+            return sweep_time[:int(ind)], sweep_data[:int(ind)], all_events[:100], events_df
+
+
 
 # Main function for Streamlit app
 def main():
