@@ -178,6 +178,7 @@ class EventDetection:
             # Check if the data point crosses below the standard deviation threshold
             if data_chunk[i] < std_threshold and data_chunk[i - 1] >= std_threshold:
                 start_time = data_time[i]  # Record the start time of the event
+                start_sig = i # Record the index of the start time of the event
 
             # Check if the data point goes below the absolute threshold during the event
             if start_time and data_chunk[i] < threshold:
@@ -187,13 +188,17 @@ class EventDetection:
             if start_time and data_chunk[i] >= std_threshold and data_chunk[i - 1] < std_threshold:
                 if crossed_threshold:
                     end_time = data_time[i]  # Record the end time of the event
+                    end_sig = i # Record the index of the end time of the event
                     difference = end_time - start_time  # Calculate the duration of the event
+                    event_data_list = data_chunk[start_sig: end_sig+1] # Extracting signal between start and end time
+                    current_sig = min(event_data_list) # Extracting the min value in the signal (max drop)
                     if difference >= 0.0001:  # Check if the event duration meets the minimum criteria
                         # Record the event details
                         events_data.append({
                             'start_time': start_time,
                             'end_time': end_time,
-                            'difference': difference
+                            'difference': difference,
+                            'amplitude': current_sig
                         })
                         start_time = None  # Reset the start time for the next event
                         crossed_threshold = False  # Reset the threshold flag for the next event
@@ -262,6 +267,7 @@ class Plotting:
                                     mode='markers',
                                     marker=dict(color='white', size=10),
                                     showlegend=False))
+
 
         # Update layout
         fig.update_layout(title='Data with Events',
