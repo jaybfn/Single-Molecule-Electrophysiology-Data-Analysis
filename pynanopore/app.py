@@ -97,14 +97,19 @@ def main():
                                             ('single', 'double'),
                                             index = 0,
                                             placeholder = "Select Fit Options")
+            with col2:
+                bins = st.number_input("Select bins for Exponential Fit (Default value set to 20 bins)", value=20)
     
             with st.container():
                 col1, col2 = st.columns(2)
-                
+                # Calculate the 99.9th percentile value of the 'difference' column
+                percentile_99_9 = np.percentile(events_df['difference'], 99.9)
+                # Filter the DataFrame to only include rows where 'difference' is less than the 99.9th percentile
+                events_df = events_df[events_df['difference'] < percentile_99_9]
 
                 with col1:
-
-                    fit = DwellTime_ExponentialFit(events_df)
+                    
+                    fit = DwellTime_ExponentialFit(events_df, bins = bins)
                     hist= fit.plot_hist_data()
                     st.plotly_chart(hist)
 
@@ -112,64 +117,56 @@ def main():
                     
                     
                     if options == 'single':
-                        fit = DwellTime_ExponentialFit(events_df)  # Create instance of the class
+                        fit = DwellTime_ExponentialFit(events_df, bins = bins)  # Create instance of the class
                         fit.fit_data('single')  # Fit the data
                         hist_fit = fit.plot_data('single')  # Plot the data
                         st.plotly_chart(hist_fit)
                         parms = fit.print_parameters('single')
 
                         with st.container():
-                            fit1, fit2, fit3 = st.columns(3)
+                            fit1, fit2 = st.columns(2)
                             with fit1:
-                                st.markdown(f"""
-                                    <div style="font-size: 24px">
-                                        <strong>a :</strong> {round(parms[0],4)} 
-                                    </div>
-                                """, unsafe_allow_html=True)
+                                st.text('Fit Params:')
+                                a = round(parms[0], 4)
+                                tau = round(parms[1], 4)
 
-                            with fit2:
-                                st.markdown(f"""
-                                    <div style="font-size: 24px">
-                                        <strong>tau :</strong> {round(parms[1],4)}
-                                    </div>
-                                """, unsafe_allow_html=True)
+                                # Create a dictionary with the data
+                                data = {'Parameter': ['a', 'tau'],
+                                        'Value': [a, tau]}
+                                
+                                # Convert the dictionary to a DataFrame
+                                parameters_df = pd.DataFrame(data)
+                                parameters_df = parameters_df.set_index('Parameter')
+                                # display the datafrrame
+                                st.dataframe(parameters_df.transpose())
+
 
                     elif options == 'double':
                         st.text('testing!')
-                        fit = DwellTime_ExponentialFit(events_df)  # Create instance of the class
+                        fit = DwellTime_ExponentialFit(events_df, bins = bins)  # Create instance of the class
                         fit.fit_data('double')  # Fit the data
                         hist_fit = fit.plot_data('double')  # Plot the data
                         st.plotly_chart(hist_fit)
                         parms = fit.print_parameters('double')
 
                         with st.container():
-                            fit1, fit2, fit3, fit4 = st.columns(4)
-                            with fit1:
-                                st.markdown(f"""
-                                    <div style="font-size: 20px">
-                                        <strong>a1 :</strong> {round(parms[0],4)} 
-                                    </div>
-                                """, unsafe_allow_html=True)
+                            
 
-                            with fit2:
-                                st.markdown(f"""
-                                    <div style="font-size: 20px">
-                                        <strong>tau1 :</strong> {round(parms[1],4)}
-                                    </div>
-                                """, unsafe_allow_html=True)
+                            st.text('Fit Params:')
+                            a1 = round(parms[0], 4)
+                            tau1 = round(parms[1], 4)
+                            a2 = round(parms[2], 4)
+                            tau2 = round(parms[3], 4)
 
-                            with fit3:
-                                st.markdown(f"""
-                                    <div style="font-size: 20px">
-                                        <strong>a2 :</strong> {round(parms[2],4)}
-                                    </div>
-                                """, unsafe_allow_html=True)
-                            with fit4:
-                                st.markdown(f"""
-                                    <div style="font-size: 20px">
-                                        <strong>tau2 :</strong> {round(parms[3],4)}
-                                    </div>
-                                """, unsafe_allow_html=True)
+                            # Create a dictionary with the data
+                            data = {'Parameter': ['a1', 'tau1','a2', 'tau2'],
+                                    'Value': [a1, tau1, a2, tau2]}
+                            
+                            # Convert the dictionary to a DataFrame
+                            parameters_df = pd.DataFrame(data)
+                            parameters_df = parameters_df.set_index('Parameter')
+                            # display the datafrrame
+                            st.dataframe(parameters_df.transpose())
 
         with power_spectrum:
 

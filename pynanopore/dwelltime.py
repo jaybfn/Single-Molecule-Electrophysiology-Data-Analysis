@@ -50,6 +50,7 @@ class DwellTime_ExponentialFit:
             xaxis_title="Dwell Time (s)",
             yaxis_title="Counts"
         )
+        
         return fig
 
     def plot_data(self, fit_type: str) -> None:
@@ -73,6 +74,7 @@ class DwellTime_ExponentialFit:
             xaxis_title="Dwell Time (s)",
             yaxis_title="Counts"
         )
+        
         return fig
 
     def print_parameters(self, fit_type: str) -> None:
