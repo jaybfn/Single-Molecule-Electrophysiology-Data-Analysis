@@ -74,16 +74,17 @@ def main():
 
                     except Exception as e:
                         st.write("Error: ", e)
+                    on = st.toggle("Detect Events")
 
                 with col2:
                     try:
+                        if on:
+                            st.markdown("Ion Current Trace With Detected Events:")
 
-                        st.markdown("Ion Current Trace With Detected Events:")
-
-                        # Use your plotter to display the plot
-                        plotter = Plotting()
-                        plot_figure = plotter.plot_data(sweep_time, sweep_data, all_events)
-                        st.plotly_chart(plot_figure)
+                            # Use your plotter to display the plot
+                            plotter = Plotting()
+                            plot_figure = plotter.plot_data(sweep_time, sweep_data, all_events)
+                            st.plotly_chart(plot_figure)
 
                     except Exception as e:
                         st.write("Error: ", e)
