@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
 import plotly.graph_objects as go
-from event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
+#from event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
+from pynanopore.event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
 
 class DwellTime_ExponentialFit:
     def __init__(self, events_df: pd.DataFrame, bins: int = 250) -> None:

@@ -7,9 +7,13 @@ import os
 import pyabf
 
 #from pynanopore.event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
-from event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
-from powerspectrum import PSDAnalyzer, LorentzianFitter
-from dwelltime import DwellTime_ExponentialFit
+# from event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
+# from powerspectrum import PSDAnalyzer, LorentzianFitter
+# from dwelltime import DwellTime_ExponentialFit
+
+from pynanopore.event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
+from pynanopore.powerspectrum import PSDAnalyzer, LorentzianFitter
+from pynanopore.dwelltime import DwellTime_ExponentialFit
 
 # Function to load and process your data
 def process_data(file_path):
