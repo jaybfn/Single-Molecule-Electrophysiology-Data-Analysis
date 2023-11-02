@@ -207,21 +207,34 @@ def main():
                     st.plotly_chart(psd_plot_fit)
                     # fitting params
                     with st.container():
-                        fit1, fit2, fit3 = st.columns(3)
+                        # fit1, fit2, fit3 = st.columns(3)
 
-                        with fit1:
-                            st.markdown(f"""
-                                <div style="font-size: 24px">
-                                    <strong>S(0) :</strong> {round(lorentzian_fitter.S_0_opt,2)} pA^2/Hz
-                                </div>
-                            """, unsafe_allow_html=True)
+                        # with fit1:
+                        #     st.markdown(f"""
+                        #         <div style="font-size: 24px">
+                        #             <strong>S(0) :</strong> {round(lorentzian_fitter.S_0_opt,2)} pA^2/Hz
+                        #         </div>
+                        #     """, unsafe_allow_html=True)
 
-                        with fit2:
-                            st.markdown(f"""
-                                <div style="font-size: 24px">
-                                    <strong>fc :</strong> {round(lorentzian_fitter.f_c_opt,2)} Hz
-                                </div>
-                            """, unsafe_allow_html=True)
+                        # with fit2:
+                        #     st.markdown(f"""
+                        #         <div style="font-size: 24px">
+                        #             <strong>fc :</strong> {round(lorentzian_fitter.f_c_opt,2)} Hz
+                        #         </div>
+                        #     """, unsafe_allow_html=True)
+
+                        S0 = round(lorentzian_fitter.S_0_opt,2)
+                        fc = round(lorentzian_fitter.f_c_opt,2)
+                        # Create a dictionary with the data
+                        data = {'Parameter': ['S0 (pA^2/Hz)', 'fc (Hz)'],
+                                'Value': [S0, fc]}
+                        
+                        # Convert the dictionary to a DataFrame
+                        parameters_df = pd.DataFrame(data)
+                        parameters_df = parameters_df.set_index('Parameter')
+                        # display the datafrrame
+                        st.text('Fit Params:')
+                        st.dataframe(parameters_df.transpose())
 
 
 
