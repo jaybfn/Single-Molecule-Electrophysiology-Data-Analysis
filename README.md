@@ -6,5 +6,5 @@ Tiny pores on the nanometer scale have shown promising applications in the field
 
 
 
-## more info comming soon!!!!
-## this app is still under development!
+### more info comming soon!!!!
+### this app is still under development!
