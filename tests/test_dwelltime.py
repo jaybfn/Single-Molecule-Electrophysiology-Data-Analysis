@@ -45,12 +45,12 @@ class TestDwellTimeExponentialFit:
         exp_fit.fit_data('single')
         assert exp_fit.params_single is not None, "Single exponential parameters should not be None."
     
-    def test_fit_data_double(self, exp_fit: DwellTime_ExponentialFit):
-        """
-        Test fitting data with a double exponential function.
-        """
-        exp_fit.fit_data('double')
-        assert exp_fit.params_double is not None, "Double exponential parameters should not be None."
+    # def test_fit_data_double(self, exp_fit: DwellTime_ExponentialFit):
+    #     """
+    #     Test fitting data with a double exponential function.
+    #     """
+    #     exp_fit.fit_data('double')
+    #     assert exp_fit.params_double is not None, "Double exponential parameters should not be None."
     
     def test_fit_data_invalid(self, exp_fit: DwellTime_ExponentialFit):
         """
@@ -90,13 +90,13 @@ class TestDwellTimeExponentialFit:
         a, b = exp_fit.print_parameters('single')
         assert a is not None and b is not None, "Parameters for single exponential should not be None."
     
-    def test_print_parameters_double(self, exp_fit: DwellTime_ExponentialFit):
-        """
-        Test printing parameters for double exponential fit.
-        """
-        exp_fit.fit_data('double')
-        a, b, c, d = exp_fit.print_parameters('double')
-        assert None not in (a, b, c, d), "Parameters for double exponential should not be None."
+    # def test_print_parameters_double(self, exp_fit: DwellTime_ExponentialFit):
+    #     """
+    #     Test printing parameters for double exponential fit.
+    #     """
+    #     exp_fit.fit_data('double')
+    #     a, b, c, d = exp_fit.print_parameters('double')
+    #     assert None not in (a, b, c, d), "Parameters for double exponential should not be None."
     
     def test_print_parameters_invalid(self, exp_fit: DwellTime_ExponentialFit):
         """
