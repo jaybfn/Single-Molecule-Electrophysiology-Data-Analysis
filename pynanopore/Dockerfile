@@ -5,7 +5,7 @@ FROM python:3.11-slim
 WORKDIR /pynanopore
 
 # Copy the dependencies file to the working directory
-COPY requirements.txt .
+COPY /pynanopore/requirements.txt .
 
 # Install any dependencies
 RUN pip install --no-cache-dir -r requirements.txt
