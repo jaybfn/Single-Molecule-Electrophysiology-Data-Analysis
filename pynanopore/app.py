@@ -6,11 +6,6 @@ import numpy as np
 import os
 import pyabf
 
-
-# from event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
-# from powerspectrum import PSDAnalyzer, LorentzianFitter
-# from dwelltime import DwellTime_ExponentialFit
-
 from pynanopore.event_detection import ReadingData, CreatingChunks, EventDetection, Plotting 
 from pynanopore.powerspectrum import PSDAnalyzer, LorentzianFitter
 from pynanopore.dwelltime import DwellTime_ExponentialFit
