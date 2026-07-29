@@ -125,6 +125,104 @@ class Plotting:
         return fig
 
 
+def plot_pulse_shape(
+    time: NDArray[np.floating],
+    current: NDArray[np.floating],
+    pulse,
+    *,
+    show_smoothed: bool = False,
+    sigma: float = 1.5,
+    title: str = "Ion current with pulse-shape idealization",
+) -> Any:
+    """
+    Plot raw current with idealized rectangular pulses (screenshot-style).
+
+    - Gray/blue raw trace
+    - Black stepwise idealization
+    - Red markers at rising edges (event start)
+    - Blue markers at falling edges (event end)
+    - Horizontal guides for open-pore and mean blocked levels
+    """
+    go = _require_plotly()
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatter(
+            x=time,
+            y=current,
+            mode="lines",
+            name="Raw signal",
+            line=dict(color="rgba(80,80,80,0.7)", width=1),
+        )
+    )
+    if show_smoothed:
+        fig.add_trace(
+            go.Scatter(
+                x=time,
+                y=gaussian_filter1d(current, sigma=sigma),
+                mode="lines",
+                name="Smoothed",
+                line=dict(color="rgba(120,120,180,0.8)", width=1),
+            )
+        )
+
+    fig.add_trace(
+        go.Scatter(
+            x=pulse.time,
+            y=pulse.idealized,
+            mode="lines",
+            name="Pulse shape",
+            line=dict(color="black", width=2, shape="hv"),
+        )
+    )
+
+    rt, ry = pulse.rising_edges
+    ft, fy = pulse.falling_edges
+    if len(rt):
+        fig.add_trace(
+            go.Scatter(
+                x=rt,
+                y=ry,
+                mode="markers",
+                name="Rising edge",
+                marker=dict(color="red", size=9, symbol="line-ns-open"),
+            )
+        )
+    if len(ft):
+        fig.add_trace(
+            go.Scatter(
+                x=ft,
+                y=fy,
+                mode="markers",
+                name="Falling edge",
+                marker=dict(color="blue", size=9, symbol="line-ns-open"),
+            )
+        )
+
+    if pulse.events:
+        open_lvl = float(np.median([e.i0 for e in pulse.events]))
+        blocked_lvl = float(np.median([e.blockade_mean for e in pulse.events]))
+        fig.add_hline(
+            y=open_lvl,
+            line=dict(color="lightskyblue", width=1.5, dash="dash"),
+            annotation_text="Open pore (I0)",
+        )
+        fig.add_hline(
+            y=blocked_lvl,
+            line=dict(color="lightskyblue", width=1.5, dash="dot"),
+            annotation_text="Blocked level",
+        )
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Time (s)",
+        yaxis_title="Current (pA)",
+        template="plotly_white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+    )
+    return fig
+
+
 def plot_dwelltime_histogram(fitter, fit_type=None) -> Any:
     go = _require_plotly()
     fig = go.Figure()
