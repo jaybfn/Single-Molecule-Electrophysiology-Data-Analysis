@@ -9,12 +9,12 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md LICENSE ./
+COPY pyproject.toml README.md LICENSE requirements.lock ./
 COPY packages/pynanopore ./packages/pynanopore
 COPY services/gateway/app.py ./services/gateway/app.py
 
 RUN pip install --upgrade pip \
-    && pip install ".[services]" \
+    && pip install ".[services]" -c requirements.lock \
     && useradd --create-home --uid 10001 appuser
 
 USER appuser

@@ -3,20 +3,23 @@
 from __future__ import annotations
 
 from typing import Any, Literal
-from uuid import uuid4
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from pynanopore import DwellTimeExponentialFit
+from pynanopore.serving import ServiceSettings, configure_service
 from pynanopore.viz import plot_dwelltime_histogram
+
+settings = ServiceSettings(service_name="stats-service")
 
 app = FastAPI(
     title="Pynanopore Stats Service",
-    version="2.2.0",
+    version="2.4.0",
     description="Dwell-time histogram and exponential lifetime fitting (MLE / AIC).",
 )
+configure_service(app, settings)
 
 
 class StatsRequest(BaseModel):
@@ -52,8 +55,8 @@ def health() -> dict[str, str]:
 
 
 @app.post("/v1/dwelltime", response_model=StatsResponse)
-def fit_dwelltime(body: StatsRequest) -> StatsResponse:
-    request_id = str(uuid4())
+def fit_dwelltime(request: Request, body: StatsRequest) -> StatsResponse:
+    request_id = getattr(request.state, "request_id", "unknown")
     if not body.events:
         raise HTTPException(status_code=400, detail="events list is empty")
 
@@ -95,7 +98,6 @@ def fit_dwelltime(body: StatsRequest) -> StatsResponse:
 
         plot_payload = None
         if body.include_plot:
-            # Ensure last_result matches chosen fit for plotting
             fitter.last_result = result
             fig = plot_dwelltime_histogram(fitter, fit_type=result.fit_type)
             plot_payload = fig.to_plotly_json()

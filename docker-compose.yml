@@ -5,11 +5,18 @@ services:
       dockerfile: services/event-service/Dockerfile
     ports:
       - "8001:8001"
+    environment:
+      SERVICE_NAME: event-service
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_JSON: ${LOG_JSON:-true}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-100}
+      HTTP_TIMEOUT_S: ${HTTP_TIMEOUT_S:-120}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
-      interval: 15s
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
 
   stats-service:
     build:
@@ -17,11 +24,18 @@ services:
       dockerfile: services/stats-service/Dockerfile
     ports:
       - "8002:8002"
+    environment:
+      SERVICE_NAME: stats-service
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_JSON: ${LOG_JSON:-true}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-100}
+      HTTP_TIMEOUT_S: ${HTTP_TIMEOUT_S:-120}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"]
-      interval: 15s
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
 
   psd-service:
     build:
@@ -29,11 +43,18 @@ services:
       dockerfile: services/psd-service/Dockerfile
     ports:
       - "8003:8003"
+    environment:
+      SERVICE_NAME: psd-service
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_JSON: ${LOG_JSON:-true}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-100}
+      HTTP_TIMEOUT_S: ${HTTP_TIMEOUT_S:-120}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health')"]
-      interval: 15s
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
 
   gateway:
     build:
@@ -42,21 +63,28 @@ services:
     ports:
       - "8000:8000"
     environment:
+      SERVICE_NAME: gateway
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_JSON: ${LOG_JSON:-true}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-100}
+      HTTP_TIMEOUT_S: ${HTTP_TIMEOUT_S:-120}
+      DOWNSTREAM_TIMEOUT_S: ${DOWNSTREAM_TIMEOUT_S:-120}
       EVENT_SERVICE_URL: http://event-service:8001
       STATS_SERVICE_URL: http://stats-service:8002
       PSD_SERVICE_URL: http://psd-service:8003
     depends_on:
       event-service:
-        condition: service_started
+        condition: service_healthy
       stats-service:
-        condition: service_started
+        condition: service_healthy
       psd-service:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
-      interval: 15s
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   web-ui:
     build:
@@ -66,5 +94,7 @@ services:
       - "8501:8501"
     environment:
       GATEWAY_URL: http://gateway:8000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
-      - gateway
+      gateway:
+        condition: service_healthy

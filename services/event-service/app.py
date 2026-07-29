@@ -5,10 +5,9 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 from typing import Any, Literal
-from uuid import uuid4
 
 import pandas as pd
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 
 from pynanopore import (
@@ -19,13 +18,18 @@ from pynanopore import (
     PulseShapeIdealizer,
     load_trace,
 )
+from pynanopore.serving import ServiceSettings, configure_service
+from pynanopore.serving.app_factory import enforce_upload_size
 from pynanopore.viz import Plotting, plot_pulse_shape
+
+settings = ServiceSettings(service_name="event-service")
 
 app = FastAPI(
     title="Pynanopore Event Service",
-    version="2.2.0",
+    version="2.4.0",
     description="Detect translocation events in ABF/CSV ion-current recordings.",
 )
+configure_service(app, settings)
 
 
 class DetectResponse(BaseModel):
@@ -55,6 +59,7 @@ def health() -> dict[str, str]:
 
 @app.post("/v1/detect", response_model=DetectResponse)
 async def detect_events(
+    request: Request,
     file: UploadFile = File(...),
     std_multiplier: float = Query(0.25, ge=0),
     threshold_multiplier: float = Query(1.5, ge=0),
@@ -68,13 +73,14 @@ async def detect_events(
     include_plot: bool = Query(False),
     include_pulse_plot: bool = Query(True),
 ) -> DetectResponse:
-    request_id = str(uuid4())
+    request_id = getattr(request.state, "request_id", "unknown")
     suffix = Path(file.filename or "upload.abf").suffix.lower()
     if suffix not in {".abf", ".csv"}:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {suffix}")
 
     try:
         raw = await file.read()
+        enforce_upload_size(raw, settings, request_id)
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(raw)
             tmp_path = Path(tmp.name)
@@ -148,6 +154,8 @@ async def detect_events(
             preview_time=preview_time,
             preview_current=preview_current,
         )
+    except HTTPException:
+        raise
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:

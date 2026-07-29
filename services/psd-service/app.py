@@ -5,20 +5,24 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 from typing import Any, Literal
-from uuid import uuid4
 
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 
 from pynanopore import CompositePSDFitter, LorentzianFitter, PSDAnalyzer, load_trace
+from pynanopore.serving import ServiceSettings, configure_service
+from pynanopore.serving.app_factory import enforce_upload_size
 from pynanopore.viz import plot_psd
+
+settings = ServiceSettings(service_name="psd-service")
 
 app = FastAPI(
     title="Pynanopore PSD Service",
-    version="2.3.0",
+    version="2.4.0",
     description="Welch PSD estimation with Lorentzian / composite fits.",
 )
+configure_service(app, settings)
 
 
 class PSDArrayRequest(BaseModel):
@@ -59,6 +63,7 @@ def _analyze(
     current,
     fs: float,
     *,
+    request_id: str,
     fit: bool,
     fit_model: str,
     include_plot: bool,
@@ -69,7 +74,6 @@ def _analyze(
     scaling: str,
     skip_bins: int,
 ) -> PSDResponse:
-    request_id = str(uuid4())
     analyzer = PSDAnalyzer(fs=fs)
     frequencies, power_spectrum = analyzer.compute_psd(
         current,
@@ -119,11 +123,13 @@ def _analyze(
 
 
 @app.post("/v1/psd", response_model=PSDResponse)
-def compute_psd_from_array(body: PSDArrayRequest) -> PSDResponse:
+def compute_psd_from_array(request: Request, body: PSDArrayRequest) -> PSDResponse:
+    request_id = getattr(request.state, "request_id", "unknown")
     try:
         return _analyze(
             np.asarray(body.current, dtype=float),
             body.fs,
+            request_id=request_id,
             fit=body.fit,
             fit_model=body.fit_model,
             include_plot=body.include_plot,
@@ -140,6 +146,7 @@ def compute_psd_from_array(body: PSDArrayRequest) -> PSDResponse:
 
 @app.post("/v1/psd/upload", response_model=PSDResponse)
 async def compute_psd_from_file(
+    request: Request,
     file: UploadFile = File(...),
     fs: float | None = Query(None, gt=0),
     fit: bool = Query(True),
@@ -152,11 +159,13 @@ async def compute_psd_from_file(
     scaling: Literal["density", "spectrum"] = Query("spectrum"),
     skip_bins: int = Query(2, ge=0),
 ) -> PSDResponse:
+    request_id = getattr(request.state, "request_id", "unknown")
     suffix = Path(file.filename or "upload.abf").suffix.lower()
     if suffix not in {".abf", ".csv"}:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {suffix}")
     try:
         raw = await file.read()
+        enforce_upload_size(raw, settings, request_id)
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(raw)
             tmp_path = Path(tmp.name)
@@ -165,6 +174,7 @@ async def compute_psd_from_file(
         return _analyze(
             trace.current,
             sample_rate,
+            request_id=request_id,
             fit=fit,
             fit_model=fit_model,
             include_plot=include_plot,
@@ -175,6 +185,8 @@ async def compute_psd_from_file(
             scaling=scaling,
             skip_bins=skip_bins,
         )
+    except HTTPException:
+        raise
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:

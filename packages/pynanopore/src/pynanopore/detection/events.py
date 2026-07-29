@@ -42,7 +42,13 @@ class Event:
             self.dwell_time = self.difference
 
     def to_dict(self) -> dict[str, float]:
-        return {f.name: getattr(self, f.name) for f in fields(self)}
+        out: dict[str, float] = {}
+        for f in fields(self):
+            v = getattr(self, f.name)
+            if isinstance(v, np.generic):
+                v = v.item()
+            out[f.name] = float(v)
+        return out
 
 
 def _transition_times(
