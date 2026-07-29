@@ -31,6 +31,20 @@ def main(argv: list[str] | None = None) -> int:
     detect.add_argument("--std-multiplier", type=float, default=0.25)
     detect.add_argument("--threshold-multiplier", type=float, default=1.5)
     detect.add_argument("--interval", type=float, default=5.0)
+    detect.add_argument("--overlap", type=float, default=0.0, help="Chunk overlap in seconds")
+    detect.add_argument(
+        "--direction",
+        choices=["down", "up"],
+        default="down",
+        help="Event polarity relative to baseline",
+    )
+    detect.add_argument(
+        "--baseline",
+        choices=["none", "median", "constant"],
+        default="none",
+        help="Baseline estimator",
+    )
+    detect.add_argument("--baseline-window", type=float, default=0.05, help="Median window (s)")
     detect.add_argument("--output", "-o", help="Write events CSV to this path")
 
     dwell = sub.add_parser("dwelltime", help="Fit dwell-time histogram from events CSV")
@@ -46,12 +60,24 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "detect":
+        from pynanopore.detection.baseline import ConstantBaseline, MedianBaseline, NoneBaseline
+
         trace = load_trace(args.file)
+        if args.baseline == "median":
+            baseline: MedianBaseline | ConstantBaseline | NoneBaseline = MedianBaseline(
+                window_s=args.baseline_window
+            )
+        elif args.baseline == "constant":
+            baseline = ConstantBaseline()
+        else:
+            baseline = NoneBaseline()
         detector = EventDetector(
             std_multiplier=args.std_multiplier,
             threshold_multiplier=args.threshold_multiplier,
+            direction=args.direction,
+            baseline=baseline,
         )
-        events = detector.detect_trace(trace, interval_length=args.interval)
+        events = detector.detect_trace(trace, interval_length=args.interval, overlap=args.overlap)
         df = pd.DataFrame([e.to_dict() for e in events])
         if args.output:
             df.to_csv(args.output, index=False)

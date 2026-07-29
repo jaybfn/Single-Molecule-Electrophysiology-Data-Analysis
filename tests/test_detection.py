@@ -31,7 +31,9 @@ def test_detect_events_dicts(synthetic_trace: Trace):
     detector = EventDetector(std_multiplier=0.5, threshold_multiplier=2.0)
     chunk = synthetic_trace.current[:500]
     time = synthetic_trace.time[:500]
-    dicts = detector.detect_events_dicts(chunk, time)
+    dicts = detector.detect_events_dicts(chunk, time, sample_rate=synthetic_trace.sample_rate)
     assert isinstance(dicts, list)
     if dicts:
         assert "difference" in dicts[0]
+        assert "delta_i" in dicts[0]
+        assert "i0" in dicts[0]
