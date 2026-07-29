@@ -280,7 +280,7 @@ All HTTP responses include `X-Request-ID` (pass one in to correlate gateway → 
 Pinned dependencies for reproducible installs: [`requirements.lock`](requirements.lock) (use as `pip install ... -c requirements.lock`). Regenerate with:
 
 ```bash
-pip-compile --extra viz --extra ui --extra services --extra dev -o requirements.lock pyproject.toml
+pip-compile --strip-extras --extra viz --extra ui --extra services --extra dev -o requirements.lock pyproject.toml
 ```
 
 ### Gateway API overview

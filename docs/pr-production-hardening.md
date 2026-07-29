@@ -35,7 +35,7 @@ After science features landed, the highest leverage work is operational reliabil
 - Ops env vars passed through to services
 
 ### Lockfile
-- `requirements.lock` generated from `pyproject.toml` extras for reproducible CI/Docker builds
+- `requirements.lock` generated from `pyproject.toml` extras (`pip-compile --strip-extras`) for use as pip `-c` constraints
 - CI and service Dockerfiles install with `-c requirements.lock`
 
 ### Version
