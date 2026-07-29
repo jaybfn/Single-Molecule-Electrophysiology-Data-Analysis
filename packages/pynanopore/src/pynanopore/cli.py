@@ -18,7 +18,27 @@ from pynanopore import (
     batch_detect,
     load_trace,
 )
-from pynanopore.psd.lorentzian import CompositePSDFitter
+from pynanopore.detection.baseline import (
+    ConstantBaseline,
+    MedianBaseline,
+    NoneBaseline,
+    PercentileBaseline,
+)
+from pynanopore.psd.lorentzian import (
+    CompositePSDFitter,
+    LorentzianWhiteFitter,
+    MultiLorentzianFitter,
+)
+
+
+def _make_baseline(name: str, window_s: float, percentile: float = 90.0):
+    if name == "median":
+        return MedianBaseline(window_s=window_s)
+    if name == "constant":
+        return ConstantBaseline()
+    if name == "percentile":
+        return PercentileBaseline(percentile=percentile, window_s=max(window_s, 0.5))
+    return NoneBaseline()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -43,11 +63,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     detect.add_argument(
         "--baseline",
-        choices=["none", "median", "constant"],
+        choices=["none", "median", "constant", "percentile"],
         default="none",
         help="Baseline estimator",
     )
-    detect.add_argument("--baseline-window", type=float, default=0.05, help="Median window (s)")
+    detect.add_argument("--baseline-window", type=float, default=0.05, help="Baseline window (s)")
+    detect.add_argument(
+        "--baseline-percentile",
+        type=float,
+        default=90.0,
+        help="Percentile for percentile baseline (use ~10 for upward events)",
+    )
+    detect.add_argument("--no-levels", action="store_true", help="Skip multi-level analysis")
     detect.add_argument("--output", "-o", help="Write events CSV to this path")
 
     batch = sub.add_parser("batch-detect", help="Detect events for all ABF/CSV files in a folder")
@@ -58,10 +85,20 @@ def main(argv: list[str] | None = None) -> int:
     batch.add_argument("--interval", type=float, default=5.0)
     batch.add_argument("--overlap", type=float, default=0.0)
     batch.add_argument("--direction", choices=["down", "up"], default="down")
-    batch.add_argument("--baseline", choices=["none", "median", "constant"], default="none")
+    batch.add_argument(
+        "--baseline", choices=["none", "median", "constant", "percentile"], default="none"
+    )
     batch.add_argument("--baseline-window", type=float, default=0.05)
+    batch.add_argument("--baseline-percentile", type=float, default=90.0)
     batch.add_argument("--no-dwell-fit", action="store_true", help="Skip per-file dwell MLE")
     batch.add_argument("--dwell-fit", choices=["single", "double", "auto"], default="single")
+    batch.add_argument("--no-levels", action="store_true")
+    batch.add_argument(
+        "--n-jobs",
+        type=int,
+        default=1,
+        help="Parallel workers (1=serial, -1=all CPUs)",
+    )
 
     dwell = sub.add_parser("dwelltime", help="Fit dwell-time histogram from events CSV")
     dwell.add_argument("events_csv", help="CSV with a 'difference' column")
@@ -76,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
     psd.add_argument("--fit", action="store_true", help="Fit a spectral model")
     psd.add_argument(
         "--fit-model",
-        choices=["lorentzian", "composite"],
+        choices=["lorentzian", "composite", "lorentzian_white", "double_lorentzian"],
         default="lorentzian",
     )
     psd.add_argument("--nperseg", type=int, default=None)
@@ -88,22 +125,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "detect":
-        from pynanopore.detection.baseline import ConstantBaseline, MedianBaseline, NoneBaseline
-
         trace = load_trace(args.file)
-        if args.baseline == "median":
-            baseline: MedianBaseline | ConstantBaseline | NoneBaseline = MedianBaseline(
-                window_s=args.baseline_window
-            )
-        elif args.baseline == "constant":
-            baseline = ConstantBaseline()
-        else:
-            baseline = NoneBaseline()
         detector = EventDetector(
             std_multiplier=args.std_multiplier,
             threshold_multiplier=args.threshold_multiplier,
             direction=args.direction,
-            baseline=baseline,
+            baseline=_make_baseline(
+                args.baseline, args.baseline_window, args.baseline_percentile
+            ),
+            analyze_levels=not args.no_levels,
         )
         events = detector.detect_trace(trace, interval_length=args.interval, overlap=args.overlap)
         df = pd.DataFrame([e.to_dict() for e in events])
@@ -121,10 +151,13 @@ def main(argv: list[str] | None = None) -> int:
             direction=args.direction,
             baseline=args.baseline,
             baseline_window=args.baseline_window,
+            baseline_percentile=args.baseline_percentile,
             interval_length=args.interval,
             overlap=args.overlap,
             fit_dwelltime=not args.no_dwell_fit,
             dwell_fit_type=args.dwell_fit,
+            analyze_levels=not args.no_levels,
+            n_jobs=args.n_jobs,
         )
         summary = batch_detect(args.input_dir, args.output_dir, cfg)
         ok = int((summary["status"] == "ok").sum()) if "status" in summary.columns else 0
@@ -157,13 +190,24 @@ def main(argv: list[str] | None = None) -> int:
         }
         if args.fit:
             if args.fit_model == "composite":
-                comp = CompositePSDFitter(
+                fitter = CompositePSDFitter(
                     frequencies, power_spectrum, max_frequency=args.max_frequency
                 )
-                params = comp.fit()
-                psd_result.update(params)
-                if comp.diagnostics:
-                    psd_result["diagnostics"] = comp.diagnostics.to_dict()
+                psd_result.update(fitter.fit())
+            elif args.fit_model == "lorentzian_white":
+                fitter = LorentzianWhiteFitter(
+                    frequencies, power_spectrum, max_frequency=args.max_frequency
+                )
+                psd_result.update(fitter.fit())
+            elif args.fit_model == "double_lorentzian":
+                fitter = MultiLorentzianFitter(
+                    frequencies,
+                    power_spectrum,
+                    n_components=2,
+                    include_white=True,
+                    max_frequency=args.max_frequency,
+                )
+                psd_result.update(fitter.fit())
             else:
                 lor = LorentzianFitter(
                     frequencies, power_spectrum, max_frequency=args.max_frequency
@@ -171,8 +215,9 @@ def main(argv: list[str] | None = None) -> int:
                 s0, fc = lor.fit_lorentzian()
                 psd_result["S0"] = s0
                 psd_result["fc"] = fc
-                if lor.diagnostics:
-                    psd_result["diagnostics"] = lor.diagnostics.to_dict()
+                fitter = lor
+            if getattr(fitter, "diagnostics", None):
+                psd_result["diagnostics"] = fitter.diagnostics.to_dict()
         print(json.dumps(psd_result, indent=2))
         return 0
 

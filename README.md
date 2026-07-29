@@ -9,6 +9,9 @@ It provides:
 3. An API gateway and Streamlit UI  
 4. Docker Compose orchestration for local / production-like runs  
 
+**Science Phase E** (multi-level events, percentile baseline, multi-Lorentzian PSD, parallel batch):
+see [docs/science_phase_e.md](docs/science_phase_e.md).
+
 **First analysis tutorial:** [docs/first_analysis.md](docs/first_analysis.md).
 
 **Event detection math** (thresholds, baseline, pulse-shape idealization): see

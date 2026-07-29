@@ -10,7 +10,14 @@ import numpy as np
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 
-from pynanopore import CompositePSDFitter, LorentzianFitter, PSDAnalyzer, load_trace
+from pynanopore import (
+    CompositePSDFitter,
+    LorentzianFitter,
+    LorentzianWhiteFitter,
+    MultiLorentzianFitter,
+    PSDAnalyzer,
+    load_trace,
+)
 from pynanopore.serving import ServiceSettings, configure_service
 from pynanopore.serving.app_factory import enforce_upload_size
 from pynanopore.viz import plot_psd
@@ -29,7 +36,9 @@ class PSDArrayRequest(BaseModel):
     current: list[float]
     fs: float = Field(..., gt=0)
     fit: bool = True
-    fit_model: Literal["lorentzian", "composite", "none"] = "lorentzian"
+    fit_model: Literal[
+        "lorentzian", "composite", "lorentzian_white", "double_lorentzian", "none"
+    ] = "lorentzian"
     include_plot: bool = False
     max_frequency: float = Field(10000.0, gt=0)
     nperseg: int | None = Field(None, gt=0)
@@ -50,6 +59,9 @@ class PSDResponse(BaseModel):
     fc: float | None = None
     A: float | None = None
     alpha: float | None = None
+    N: float | None = None
+    S0_2: float | None = None
+    fc_2: float | None = None
     diagnostics: dict[str, Any] | None = None
     plot: dict[str, Any] | None = None
 
@@ -84,7 +96,7 @@ def _analyze(
         skip_bins=skip_bins,
     )
 
-    s0 = fc = a = alpha = None
+    s0 = fc = a = alpha = n_floor = s0_2 = fc_2 = None
     diagnostics = None
     fitter = None
     model_used: str | None = None
@@ -95,6 +107,24 @@ def _analyze(
             fitter = CompositePSDFitter(frequencies, power_spectrum, max_frequency=max_frequency)
             params = fitter.fit()
             s0, fc, a, alpha = params["S0"], params["fc"], params["A"], params["alpha"]
+        elif fit_model == "lorentzian_white":
+            fitter = LorentzianWhiteFitter(
+                frequencies, power_spectrum, max_frequency=max_frequency
+            )
+            params = fitter.fit()
+            s0, fc, n_floor = params["S0"], params["fc"], params["N"]
+        elif fit_model == "double_lorentzian":
+            fitter = MultiLorentzianFitter(
+                frequencies,
+                power_spectrum,
+                n_components=2,
+                include_white=True,
+                max_frequency=max_frequency,
+            )
+            params = fitter.fit()
+            s0, fc = params["S0_1"], params["fc_1"]
+            s0_2, fc_2 = params["S0_2"], params["fc_2"]
+            n_floor = params.get("N")
         else:
             fitter = LorentzianFitter(frequencies, power_spectrum, max_frequency=max_frequency)
             s0, fc = fitter.fit_lorentzian()
@@ -117,6 +147,9 @@ def _analyze(
         fc=fc,
         A=a,
         alpha=alpha,
+        N=n_floor,
+        S0_2=s0_2,
+        fc_2=fc_2,
         diagnostics=diagnostics,
         plot=plot_payload,
     )
@@ -150,7 +183,9 @@ async def compute_psd_from_file(
     file: UploadFile = File(...),
     fs: float | None = Query(None, gt=0),
     fit: bool = Query(True),
-    fit_model: Literal["lorentzian", "composite", "none"] = Query("lorentzian"),
+    fit_model: Literal[
+        "lorentzian", "composite", "lorentzian_white", "double_lorentzian", "none"
+    ] = Query("lorentzian"),
     include_plot: bool = Query(False),
     max_frequency: float = Query(10000.0, gt=0),
     nperseg: int | None = Query(None, gt=0),

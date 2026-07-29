@@ -9,6 +9,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pynanopore.detection.baseline import BaselineEstimator, NoneBaseline, residual_current
+from pynanopore.detection.levels import analyze_event_levels
 from pynanopore.io.trace import Trace
 
 EventDirection = Literal["down", "up"]
@@ -36,6 +37,15 @@ class Event:
     fall_time: float = 0.0
     start_idx: int = -1
     end_idx: int = -1
+
+    # Multi-level conductance (Phase E)
+    n_levels: float = 1.0
+    level1_current: float = float("nan")
+    level2_current: float = float("nan")
+    level1_fraction: float = float("nan")
+    level2_fraction: float = float("nan")
+    level_sep: float = float("nan")
+    level_rms: float = float("nan")
 
     def __post_init__(self) -> None:
         if self.dwell_time == 0.0 and self.difference != 0.0:
@@ -98,6 +108,7 @@ def _build_event(
     direction: EventDirection,
     sample_rate: float,
     baseline_value: float,
+    analyze_levels: bool = True,
 ) -> Event:
     segment = current[start_idx : end_idx + 1]
     time_segment = time[start_idx : end_idx + 1]
@@ -125,6 +136,16 @@ def _build_event(
 
     rise_time, fall_time = _transition_times(segment, time_segment, i0, blockade_mean)
 
+    level_kwargs: dict[str, float] = {}
+    if analyze_levels:
+        level_kwargs = analyze_event_levels(segment, i0).as_event_fields()
+    else:
+        level_kwargs = {
+            "n_levels": 1.0,
+            "level1_current": blockade_mean,
+            "level1_fraction": 1.0,
+        }
+
     return Event(
         start_time=start_time,
         end_time=end_time,
@@ -142,6 +163,7 @@ def _build_event(
         fall_time=fall_time,
         start_idx=int(start_idx),
         end_idx=int(end_idx),
+        **level_kwargs,
     )
 
 
@@ -163,6 +185,7 @@ class EventDetector:
         direction: EventDirection = "down",
         baseline: BaselineEstimator | None = None,
         sample_rate: float | None = None,
+        analyze_levels: bool = True,
     ):
         if std_multiplier < 0 or threshold_multiplier < 0:
             raise ValueError("multipliers must be non-negative")
@@ -174,6 +197,7 @@ class EventDetector:
         self.direction: EventDirection = direction
         self.baseline: BaselineEstimator = baseline if baseline is not None else NoneBaseline()
         self.sample_rate = sample_rate
+        self.analyze_levels = bool(analyze_levels)
 
     def _prepare_signal(
         self,
@@ -256,6 +280,7 @@ class EventDetector:
                                 direction=self.direction,
                                 sample_rate=fs,
                                 baseline_value=i0_local,
+                                analyze_levels=self.analyze_levels,
                             )
                         )
                         # Adjust absolute indices if chunked

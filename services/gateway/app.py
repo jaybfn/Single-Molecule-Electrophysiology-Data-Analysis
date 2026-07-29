@@ -35,7 +35,9 @@ class PSDProxyRequest(BaseModel):
     current: list[float]
     fs: float = Field(..., gt=0)
     fit: bool = True
-    fit_model: Literal["lorentzian", "composite", "none"] = "lorentzian"
+    fit_model: Literal[
+        "lorentzian", "composite", "lorentzian_white", "double_lorentzian", "none"
+    ] = "lorentzian"
     include_plot: bool = False
     max_frequency: float = 10000.0
     nperseg: int | None = None
@@ -125,11 +127,13 @@ async def detect(
     overlap: float = Query(0.0),
     min_duration: float = Query(1e-4),
     direction: Literal["down", "up"] = Query("down"),
-    baseline: Literal["none", "median", "constant"] = Query("none"),
+    baseline: Literal["none", "median", "constant", "percentile"] = Query("none"),
     baseline_window: float = Query(0.05),
+    baseline_percentile: float = Query(90.0),
     max_plot_points: int = Query(50000),
     include_plot: bool = Query(False),
     include_pulse_plot: bool = Query(True),
+    analyze_levels: bool = Query(True),
     t_start: float | None = Query(None),
     t_end: float | None = Query(None),
 ) -> Any:
@@ -151,9 +155,11 @@ async def detect(
         "direction": direction,
         "baseline": baseline,
         "baseline_window": baseline_window,
+        "baseline_percentile": baseline_percentile,
         "max_plot_points": max_plot_points,
         "include_plot": include_plot,
         "include_pulse_plot": include_pulse_plot,
+        "analyze_levels": analyze_levels,
     }
     if t_start is not None:
         params["t_start"] = t_start
@@ -216,7 +222,9 @@ async def psd_upload(
     file: UploadFile = File(...),
     fs: float | None = Query(None),
     fit: bool = Query(True),
-    fit_model: Literal["lorentzian", "composite", "none"] = Query("lorentzian"),
+    fit_model: Literal[
+        "lorentzian", "composite", "lorentzian_white", "double_lorentzian", "none"
+    ] = Query("lorentzian"),
     include_plot: bool = Query(False),
     max_frequency: float = Query(10000.0),
     nperseg: int | None = Query(None),
