@@ -15,7 +15,7 @@ settings = GatewaySettings(service_name="gateway")
 
 app = FastAPI(
     title="Pynanopore Gateway",
-    version="2.4.0",
+    version="2.5.0",
     description="Single entrypoint routing to event, stats, and PSD services.",
 )
 logger = configure_service(app, settings)
@@ -83,6 +83,38 @@ async def health() -> dict[str, Any]:
     return {"status": overall, "services": statuses}
 
 
+@app.post("/v1/preview")
+async def preview(
+    request: Request,
+    file: UploadFile = File(...),
+    max_points: int = Query(20000),
+) -> Any:
+    data = await file.read()
+    enforce_upload_size(data, settings, _rid(request))
+    files = {
+        "file": (
+            file.filename or "upload.abf",
+            data,
+            file.content_type or "application/octet-stream",
+        )
+    }
+    async with httpx.AsyncClient(timeout=settings.downstream_timeout_s) as client:
+        try:
+            resp = await client.post(
+                f"{settings.event_service_url}/v1/preview",
+                files=files,
+                params={"max_points": max_points},
+                headers=_downstream_headers(request),
+            )
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"event-service unreachable: {exc}"
+            ) from exc
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json()
+
+
 @app.post("/v1/detect")
 async def detect(
     request: Request,
@@ -98,6 +130,8 @@ async def detect(
     max_plot_points: int = Query(50000),
     include_plot: bool = Query(False),
     include_pulse_plot: bool = Query(True),
+    t_start: float | None = Query(None),
+    t_end: float | None = Query(None),
 ) -> Any:
     data = await file.read()
     enforce_upload_size(data, settings, _rid(request))
@@ -108,7 +142,7 @@ async def detect(
             file.content_type or "application/octet-stream",
         )
     }
-    params = {
+    params: dict[str, Any] = {
         "std_multiplier": std_multiplier,
         "threshold_multiplier": threshold_multiplier,
         "interval_length": interval_length,
@@ -121,6 +155,10 @@ async def detect(
         "include_plot": include_plot,
         "include_pulse_plot": include_pulse_plot,
     }
+    if t_start is not None:
+        params["t_start"] = t_start
+    if t_end is not None:
+        params["t_end"] = t_end
     async with httpx.AsyncClient(timeout=settings.downstream_timeout_s) as client:
         try:
             resp = await client.post(
@@ -186,6 +224,8 @@ async def psd_upload(
     window: str = Query("hamming"),
     scaling: Literal["density", "spectrum"] = Query("spectrum"),
     skip_bins: int = Query(2),
+    t_start: float | None = Query(None),
+    t_end: float | None = Query(None),
 ) -> Any:
     data = await file.read()
     enforce_upload_size(data, settings, _rid(request))
@@ -211,6 +251,10 @@ async def psd_upload(
         params["nperseg"] = nperseg
     if noverlap is not None:
         params["noverlap"] = noverlap
+    if t_start is not None:
+        params["t_start"] = t_start
+    if t_end is not None:
+        params["t_end"] = t_end
     async with httpx.AsyncClient(timeout=settings.downstream_timeout_s) as client:
         try:
             resp = await client.post(

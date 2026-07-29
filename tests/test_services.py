@@ -49,6 +49,50 @@ def test_event_health(event_client: TestClient):
     assert resp.json()["status"] == "ok"
 
 
+def test_event_preview_csv(event_client: TestClient, csv_trace_path: Path):
+    with csv_trace_path.open("rb") as fh:
+        resp = event_client.post(
+            "/v1/preview",
+            files={"file": ("trace.csv", fh, "text/csv")},
+            params={"max_points": 500},
+        )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["n_points_returned"] <= 500
+    assert len(body["time"]) == len(body["current"]) == body["n_points_returned"]
+    assert body["sample_rate"] > 0
+    assert body["t_max"] > body["t_min"]
+    assert resp.headers.get("X-Request-ID")
+
+
+def test_event_detect_window(event_client: TestClient, csv_trace_path: Path):
+    with csv_trace_path.open("rb") as fh:
+        preview = event_client.post(
+            "/v1/preview",
+            files={"file": ("trace.csv", fh, "text/csv")},
+        ).json()
+    t0 = float(preview["t_min"])
+    t1 = t0 + max(0.2, 0.25 * (preview["t_max"] - preview["t_min"]))
+    with csv_trace_path.open("rb") as fh:
+        resp = event_client.post(
+            "/v1/detect",
+            files={"file": ("trace.csv", fh, "text/csv")},
+            params={
+                "std_multiplier": 0.5,
+                "threshold_multiplier": 2.0,
+                "interval_length": 1.0,
+                "include_pulse_plot": False,
+                "t_start": t0,
+                "t_end": t1,
+            },
+        )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["window_start_s"] >= t0 - 1e-9
+    assert body["window_end_s"] <= t1 + 1e-9
+    assert body["duration_s"] <= (t1 - t0) + 1e-6
+
+
 def test_event_detect_csv(event_client: TestClient, csv_trace_path: Path):
     with csv_trace_path.open("rb") as fh:
         resp = event_client.post(

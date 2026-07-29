@@ -16,6 +16,15 @@ def test_trace_validation():
         Trace(time=np.array([1.0]), current=np.array([1.0, 2.0]), sample_rate=1000)
 
 
+def test_slice_by_time(synthetic_trace: Trace):
+    mid = float(synthetic_trace.time[len(synthetic_trace.time) // 2])
+    end = float(synthetic_trace.time[-1])
+    cropped = synthetic_trace.slice_by_time(mid, end)
+    assert cropped.time[0] >= mid
+    assert cropped.time[-1] <= end
+    assert len(cropped.time) < len(synthetic_trace.time)
+
+
 def test_load_csv(csv_trace_path: Path):
     trace = load_trace(csv_trace_path)
     assert len(trace.time) > 0

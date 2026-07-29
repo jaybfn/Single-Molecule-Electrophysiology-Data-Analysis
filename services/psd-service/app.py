@@ -158,6 +158,8 @@ async def compute_psd_from_file(
     window: str = Query("hamming"),
     scaling: Literal["density", "spectrum"] = Query("spectrum"),
     skip_bins: int = Query(2, ge=0),
+    t_start: float | None = Query(None),
+    t_end: float | None = Query(None),
 ) -> PSDResponse:
     request_id = getattr(request.state, "request_id", "unknown")
     suffix = Path(file.filename or "upload.abf").suffix.lower()
@@ -170,6 +172,8 @@ async def compute_psd_from_file(
             tmp.write(raw)
             tmp_path = Path(tmp.name)
         trace = load_trace(tmp_path)
+        if t_start is not None or t_end is not None:
+            trace = trace.slice_by_time(t_start, t_end)
         sample_rate = fs if fs is not None else trace.sample_rate
         return _analyze(
             trace.current,

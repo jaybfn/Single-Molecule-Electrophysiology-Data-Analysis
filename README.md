@@ -9,6 +9,8 @@ It provides:
 3. An API gateway and Streamlit UI  
 4. Docker Compose orchestration for local / production-like runs  
 
+**First analysis tutorial:** [docs/first_analysis.md](docs/first_analysis.md).
+
 **Event detection math** (thresholds, baseline, pulse-shape idealization): see
 [docs/event_detection_math.md](docs/event_detection_math.md).
 
@@ -65,17 +67,19 @@ flowchart TB
 | Hop | Protocol | Payload | Purpose |
 |-----|----------|---------|---------|
 | `web-ui` → `gateway` | HTTP | multipart file or JSON | Single public entrypoint |
-| `gateway` → `event-service` | HTTP proxy | ABF/CSV upload | Run threshold event detection |
+| `gateway` → `event-service` | HTTP proxy | ABF/CSV upload | Preview downsample or threshold event detection |
 | `gateway` → `stats-service` | HTTP proxy | JSON list of events | Fit dwell-time distributions |
 | `gateway` → `psd-service` | HTTP proxy | current array or file | Estimate PSD / fit Lorentzian |
 | each analysis service → core | in-process Python import | NumPy / pandas objects | Shared algorithms (no RPC inside core) |
 
 Typical interactive workflow:
 
-1. User uploads a recording in **web-ui**.
-2. UI calls `POST /v1/detect` on **gateway** → **event-service** returns events (+ optional Plotly payload / preview trace).
-3. UI sends those events to `POST /v1/dwelltime` → **stats-service** returns histogram densities and exponential parameters.
-4. UI sends preview current (or re-uploads the file) to `POST /v1/psd` → **psd-service** returns frequencies, power, and optional \(S_0, f_c\).
+1. User uploads a recording (or loads the example CSV) in **web-ui**.
+2. UI calls `POST /v1/preview` for a downsampled trace and draws **live threshold lines**.
+3. UI calls `POST /v1/detect` → **event-service** returns events (+ optional Plotly / preview).
+4. UI sends those events to `POST /v1/dwelltime` → **stats-service**.
+5. UI sends preview current (or re-uploads) to `POST /v1/psd` → **psd-service**.
+6. User downloads CSV / JSON / plot HTML·PNG exports from each tab.
 
 `GET /health` on the gateway probes each downstream `/health` endpoint and reports `ok` / `degraded` / `down`.
 
@@ -286,6 +290,7 @@ pip-compile --strip-extras --extra viz --extra ui --extra services --extra dev -
 ### Gateway API overview
 
 - `GET /health` — gateway + downstream health  
+- `POST /v1/preview` — multipart upload → downsampled trace for UI tuning  
 - `POST /v1/detect` — multipart file upload → events  
 - `POST /v1/dwelltime` — JSON events → fit params  
 - `POST /v1/psd` — JSON current array → PSD (+ optional Lorentzian)  
