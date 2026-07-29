@@ -4,19 +4,26 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
-from pynanopore import EventDetector, load_trace
-from pynanopore.viz import Plotting
+from pynanopore import (
+    ConstantBaseline,
+    EventDetector,
+    MedianBaseline,
+    NoneBaseline,
+    PulseShapeIdealizer,
+    load_trace,
+)
+from pynanopore.viz import Plotting, plot_pulse_shape
 
 app = FastAPI(
     title="Pynanopore Event Service",
-    version="2.0.0",
+    version="2.2.0",
     description="Detect translocation events in ABF/CSV ion-current recordings.",
 )
 
@@ -28,8 +35,17 @@ class DetectResponse(BaseModel):
     duration_s: float
     events: list[dict[str, float]]
     plot: dict[str, Any] | None = None
+    pulse_plot: dict[str, Any] | None = None
     preview_time: list[float] | None = None
     preview_current: list[float] | None = None
+
+
+def _make_baseline(kind: str, window_s: float):
+    if kind == "median":
+        return MedianBaseline(window_s=window_s)
+    if kind == "constant":
+        return ConstantBaseline()
+    return NoneBaseline()
 
 
 @app.get("/health")
@@ -43,9 +59,14 @@ async def detect_events(
     std_multiplier: float = Query(0.25, ge=0),
     threshold_multiplier: float = Query(1.5, ge=0),
     interval_length: float = Query(5.0, gt=0),
+    overlap: float = Query(0.0, ge=0),
     min_duration: float = Query(1e-4, ge=0),
+    direction: Literal["down", "up"] = Query("down"),
+    baseline: Literal["none", "median", "constant"] = Query("none"),
+    baseline_window: float = Query(0.05, gt=0),
     max_plot_points: int = Query(50000, ge=100),
     include_plot: bool = Query(False),
+    include_pulse_plot: bool = Query(True),
 ) -> DetectResponse:
     request_id = str(uuid4())
     suffix = Path(file.filename or "upload.abf").suffix.lower()
@@ -63,21 +84,20 @@ async def detect_events(
             std_multiplier=std_multiplier,
             threshold_multiplier=threshold_multiplier,
             min_duration=min_duration,
+            direction=direction,
+            baseline=_make_baseline(baseline, baseline_window),
         )
-        events = detector.detect_trace(trace, interval_length=interval_length)
+        events = detector.detect_trace(trace, interval_length=interval_length, overlap=overlap)
         event_dicts = [e.to_dict() for e in events]
 
-        # Preview: up to max_plot_points, covering early events when present
         n = len(trace.time)
         end_idx = min(n, max_plot_points)
         if events:
-            # Extend preview to cover a bit past the last shown event without hardcoding [100]
-            last_event = events[min(len(events), 100) - 1] if events else None
-            if last_event is not None:
-                approx_idx = int(last_event.end_time * trace.sample_rate) + int(
-                    0.02 * trace.sample_rate
-                )
-                end_idx = min(n, max(end_idx, approx_idx))
+            last_event = events[min(len(events), 100) - 1]
+            approx_idx = int(last_event.end_time * trace.sample_rate) + int(
+                0.02 * trace.sample_rate
+            )
+            end_idx = min(n, max(end_idx, approx_idx))
 
         preview_time = trace.time[:end_idx].tolist()
         preview_current = trace.current[:end_idx].tolist()
@@ -93,6 +113,30 @@ async def detect_events(
             )
             plot_payload = fig.to_plotly_json()
 
+        pulse_plot = None
+        if include_pulse_plot and events:
+            from dataclasses import replace
+
+            from pynanopore.io.trace import Trace
+
+            preview_trace = Trace(
+                time=trace.time[:end_idx],
+                current=trace.current[:end_idx],
+                sample_rate=trace.sample_rate,
+                source=trace.source,
+            )
+            preview_events = []
+            for e in events:
+                if e.start_idx >= end_idx:
+                    continue
+                end_i = min(e.end_idx if e.end_idx >= 0 else end_idx - 1, end_idx - 1)
+                start_i = max(0, e.start_idx)
+                if end_i >= start_i:
+                    preview_events.append(replace(e, start_idx=start_i, end_idx=end_i))
+            pulse = PulseShapeIdealizer.from_events(preview_trace, preview_events)
+            pulse_fig = plot_pulse_shape(preview_trace.time, preview_trace.current, pulse)
+            pulse_plot = pulse_fig.to_plotly_json()
+
         return DetectResponse(
             request_id=request_id,
             n_events=len(event_dicts),
@@ -100,10 +144,11 @@ async def detect_events(
             duration_s=trace.duration,
             events=event_dicts,
             plot=plot_payload,
+            pulse_plot=pulse_plot,
             preview_time=preview_time,
             preview_current=preview_current,
         )
-    except Exception as exc:  # noqa: BLE001 — surface as HTTP error
+    except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
         if "tmp_path" in locals() and tmp_path.exists():

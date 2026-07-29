@@ -31,7 +31,9 @@ settings = GatewaySettings()
 class StatsProxyRequest(BaseModel):
     events: list[dict[str, float]]
     bins: int = Field(50, ge=1)
-    fit_type: Literal["single", "double"] = "single"
+    fit_type: Literal["single", "double", "auto"] = "single"
+    method: Literal["mle", "histogram"] = "mle"
+    binning: Literal["linear", "log"] = "linear"
     percentile_clip: float = 99.9
     include_plot: bool = False
 
@@ -77,9 +79,14 @@ async def detect(
     std_multiplier: float = Query(0.25),
     threshold_multiplier: float = Query(1.5),
     interval_length: float = Query(5.0),
+    overlap: float = Query(0.0),
     min_duration: float = Query(1e-4),
+    direction: Literal["down", "up"] = Query("down"),
+    baseline: Literal["none", "median", "constant"] = Query("none"),
+    baseline_window: float = Query(0.05),
     max_plot_points: int = Query(50000),
     include_plot: bool = Query(False),
+    include_pulse_plot: bool = Query(True),
 ) -> Any:
     data = await file.read()
     files = {
@@ -93,9 +100,14 @@ async def detect(
         "std_multiplier": std_multiplier,
         "threshold_multiplier": threshold_multiplier,
         "interval_length": interval_length,
+        "overlap": overlap,
         "min_duration": min_duration,
+        "direction": direction,
+        "baseline": baseline,
+        "baseline_window": baseline_window,
         "max_plot_points": max_plot_points,
         "include_plot": include_plot,
+        "include_pulse_plot": include_pulse_plot,
     }
     async with httpx.AsyncClient(timeout=settings.http_timeout_s) as client:
         try:
