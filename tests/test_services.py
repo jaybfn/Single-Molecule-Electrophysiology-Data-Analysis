@@ -83,8 +83,9 @@ def test_stats_dwelltime(stats_client: TestClient):
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert "a" in body["parameters"]
     assert "tau" in body["parameters"]
+    assert body["method"] == "mle"
+    assert body["aic"] is not None
 
 
 def test_psd_array(psd_client: TestClient):

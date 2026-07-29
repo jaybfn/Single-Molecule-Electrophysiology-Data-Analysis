@@ -12,6 +12,9 @@ It provides:
 **Event detection math** (thresholds, baseline, pulse-shape idealization): see
 [docs/event_detection_math.md](docs/event_detection_math.md).
 
+**Dwell-time lifetime fitting** (MLE, AIC/BIC): see
+[docs/dwelltime_math.md](docs/dwelltime_math.md).
+
 ## Architecture
 
 Pynanopore is split into a **shared scientific core** and **stateless HTTP microservices**. Clients never call analysis services directly in the Compose deployment: they talk to the **gateway** (BFF), which routes requests, aggregates health, and keeps service URLs internal.

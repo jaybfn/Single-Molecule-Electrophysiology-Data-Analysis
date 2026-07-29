@@ -81,9 +81,17 @@ def main() -> None:
             st.error(f"Gateway unreachable: {exc}")
 
         uploaded = st.file_uploader("Upload ABF or CSV", type=["abf", "csv"])
+        st.subheader("Detection")
+        direction = st.selectbox("Event direction", ["down", "up"], index=0)
+        baseline = st.selectbox("Baseline", ["none", "median", "constant"], index=0)
+        baseline_window = st.number_input(
+            "Median window (s)", value=0.05, min_value=0.001, step=0.01
+        )
         std_mult = st.number_input("Std multiplier", value=0.25, min_value=0.0, step=0.05)
         thr_mult = st.number_input("Threshold multiplier", value=1.5, min_value=0.0, step=0.1)
         interval = st.number_input("Chunk interval (s)", value=5.0, min_value=0.1, step=0.5)
+        overlap = st.number_input("Chunk overlap (s)", value=0.0, min_value=0.0, step=0.1)
+        show_pulse = st.checkbox("Show pulse-shape idealization", value=True)
 
     if not uploaded:
         st.info("Upload a recording to begin analysis.")
@@ -102,7 +110,12 @@ def main() -> None:
                         std_multiplier=std_mult,
                         threshold_multiplier=thr_mult,
                         interval_length=interval,
-                        include_plot=True,
+                        overlap=overlap,
+                        direction=direction,
+                        baseline=baseline,
+                        baseline_window=baseline_window,
+                        include_plot=False,
+                        include_pulse_plot=show_pulse,
                     )
                     st.session_state["detect_result"] = result
                 except Exception as exc:  # noqa: BLE001
@@ -110,9 +123,14 @@ def main() -> None:
 
         result = st.session_state.get("detect_result")
         if result:
-            st.metric("Events detected", result["n_events"])
-            st.metric("Sample rate (Hz)", result["sample_rate"])
-            if result.get("plot"):
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Events detected", result["n_events"])
+            c2.metric("Sample rate (Hz)", result["sample_rate"])
+            c3.metric("Duration (s)", round(result.get("duration_s", 0), 3))
+            if result.get("pulse_plot"):
+                st.markdown("**Pulse-shape idealization**")
+                render_plotly(result["pulse_plot"])
+            elif result.get("plot"):
                 render_plotly(result["plot"])
             if result.get("events"):
                 st.dataframe(pd.DataFrame(result["events"]), use_container_width=True)
@@ -122,7 +140,9 @@ def main() -> None:
         if not result or not result.get("events"):
             st.warning("Run event detection first.")
         else:
-            fit_type = st.selectbox("Fit type", ["single", "double"])
+            fit_type = st.selectbox("Fit type", ["single", "double", "auto"])
+            method = st.selectbox("Method", ["mle", "histogram"], index=0)
+            binning = st.selectbox("Binning", ["linear", "log"], index=0)
             bins = st.number_input("Bins", value=50, min_value=5, max_value=2000)
             if st.button("Fit dwell times"):
                 with st.spinner("Fitting via stats-service..."):
@@ -131,6 +151,8 @@ def main() -> None:
                             result["events"],
                             bins=int(bins),
                             fit_type=fit_type,
+                            method=method,
+                            binning=binning,
                             include_plot=True,
                         )
                         st.session_state["stats_result"] = stats
@@ -139,8 +161,14 @@ def main() -> None:
 
             stats = st.session_state.get("stats_result")
             if stats:
-                st.write("Fit parameters")
+                st.write(
+                    f"Fit: **{stats.get('fit_type')}** via **{stats.get('method')}** "
+                    f"(AIC={stats.get('aic')}, BIC={stats.get('bic')})"
+                )
                 st.dataframe(pd.DataFrame([stats["parameters"]]), use_container_width=True)
+                if stats.get("model_comparison"):
+                    st.write("Model comparison (MLE)")
+                    st.json(stats["model_comparison"])
                 if stats.get("plot"):
                     render_plotly(stats["plot"])
 

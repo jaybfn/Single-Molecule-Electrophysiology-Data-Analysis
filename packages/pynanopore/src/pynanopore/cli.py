@@ -49,7 +49,9 @@ def main(argv: list[str] | None = None) -> int:
 
     dwell = sub.add_parser("dwelltime", help="Fit dwell-time histogram from events CSV")
     dwell.add_argument("events_csv", help="CSV with a 'difference' column")
-    dwell.add_argument("--fit", choices=["single", "double"], default="single")
+    dwell.add_argument("--fit", choices=["single", "double", "auto"], default="single")
+    dwell.add_argument("--method", choices=["mle", "histogram"], default="mle")
+    dwell.add_argument("--binning", choices=["linear", "log"], default="linear")
     dwell.add_argument("--bins", type=int, default=50)
 
     psd = sub.add_parser("psd", help="Compute PSD (+ optional Lorentzian fit)")
@@ -88,10 +90,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "dwelltime":
         events_df = pd.read_csv(args.events_csv)
-        fit = DwellTimeExponentialFit(events_df, bins=args.bins)
-        fit.fit_data(args.fit)
-        params = fit.get_parameters(args.fit)
-        print(json.dumps({"fit": args.fit, "parameters": params}, indent=2))
+        fit = DwellTimeExponentialFit(events_df, bins=args.bins, binning=args.binning)
+        result = fit.fit(args.fit, method=args.method)
+        print(json.dumps(result.to_dict(), indent=2))
         return 0
 
     if args.command == "psd":
@@ -99,16 +100,16 @@ def main(argv: list[str] | None = None) -> int:
         fs = args.fs if args.fs is not None else trace.sample_rate
         analyzer = PSDAnalyzer(fs=fs)
         frequencies, power_spectrum = analyzer.compute_psd_with_hamming(trace.current)
-        result: dict = {
+        psd_result: dict = {
             "n_frequencies": len(frequencies),
             "fs": fs,
         }
         if args.fit:
             fitter = LorentzianFitter(frequencies, power_spectrum)
             s0, fc = fitter.fit_lorentzian()
-            result["S0"] = s0
-            result["fc"] = fc
-        print(json.dumps(result, indent=2))
+            psd_result["S0"] = s0
+            psd_result["fc"] = fc
+        print(json.dumps(psd_result, indent=2))
         return 0
 
     return 1
