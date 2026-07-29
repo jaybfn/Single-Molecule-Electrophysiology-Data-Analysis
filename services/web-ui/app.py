@@ -173,35 +173,60 @@ def main() -> None:
                     render_plotly(stats["plot"])
 
     with psd_tab:
-        fit = st.checkbox("Fit Lorentzian", value=True)
+        fit = st.checkbox("Fit model", value=True)
+        fit_model = st.selectbox("Fit model type", ["lorentzian", "composite", "none"], index=0)
+        window = st.selectbox("Welch window", ["hamming", "hann", "blackman", "flattop"], index=0)
+        scaling = st.selectbox("Scaling", ["spectrum", "density"], index=0)
+        nperseg = st.number_input("nperseg (0=auto)", value=0, min_value=0, step=256)
         if st.button("Compute PSD"):
             with st.spinner("Computing PSD via psd-service..."):
                 try:
                     detect_result = st.session_state.get("detect_result")
+                    psd_kwargs = {
+                        "fit": fit and fit_model != "none",
+                        "fit_model": fit_model,
+                        "include_plot": True,
+                        "window": window,
+                        "scaling": scaling,
+                    }
+                    if nperseg > 0:
+                        psd_kwargs["nperseg"] = int(nperseg)
                     if detect_result and detect_result.get("preview_current"):
                         psd_result = psd_from_preview(
                             detect_result["preview_current"],
                             detect_result["sample_rate"],
-                            fit=fit,
-                            include_plot=True,
+                            **psd_kwargs,
                         )
                     else:
-                        psd_result = psd_upload(uploaded, fit=fit, include_plot=True)
+                        psd_result = psd_upload(uploaded, **psd_kwargs)
                     st.session_state["psd_result"] = psd_result
                 except Exception as exc:  # noqa: BLE001
                     st.error(str(exc))
 
         psd_result = st.session_state.get("psd_result")
         if psd_result:
-            cols = st.columns(2)
+            cols = st.columns(4)
             cols[0].metric(
-                "S0 (pA²/Hz)",
+                "S0",
                 round(psd_result["S0"], 4) if psd_result.get("S0") is not None else "—",
             )
             cols[1].metric(
                 "fc (Hz)",
                 round(psd_result["fc"], 2) if psd_result.get("fc") is not None else "—",
             )
+            cols[2].metric(
+                "A",
+                round(psd_result["A"], 6) if psd_result.get("A") is not None else "—",
+            )
+            cols[3].metric(
+                "alpha",
+                round(psd_result["alpha"], 3) if psd_result.get("alpha") is not None else "—",
+            )
+            if psd_result.get("diagnostics"):
+                st.caption(
+                    f"R²(log)={psd_result['diagnostics'].get('r2_log')}  "
+                    f"RMSE(log)={psd_result['diagnostics'].get('rmse_log')}"
+                )
             if psd_result.get("plot"):
                 render_plotly(psd_result["plot"])
 

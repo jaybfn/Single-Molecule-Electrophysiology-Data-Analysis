@@ -1,0 +1,2 @@
+file,status,n_events,sample_rate,duration_s,median_dwell,median_delta_i_over_i0,median_area,events_csv,error,dwell_fit_type,dwell_aic,dwell_tau
+test.csv,ok,17,51.19803399482904,5.400390000000698,0.020507000001089182,0.01057142856532988,0.315916747928908,events\test_events.csv,,single,-96.92668138979435,0.020048352941290325
