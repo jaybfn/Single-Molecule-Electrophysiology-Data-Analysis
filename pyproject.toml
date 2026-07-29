@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pynanopore"
-version = "2.5.0"
+version = "2.6.0"
 description = "Modular toolkit for single-molecule nanopore electrophysiology analysis"
 readme = "README.md"
 license = "MIT"

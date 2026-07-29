@@ -15,6 +15,7 @@ from pynanopore import (
     EventDetector,
     MedianBaseline,
     NoneBaseline,
+    PercentileBaseline,
     PulseShapeIdealizer,
     load_trace,
 )
@@ -59,11 +60,13 @@ class PreviewResponse(BaseModel):
     filename: str | None = None
 
 
-def _make_baseline(kind: str, window_s: float):
+def _make_baseline(kind: str, window_s: float, percentile: float = 90.0):
     if kind == "median":
         return MedianBaseline(window_s=window_s)
     if kind == "constant":
         return ConstantBaseline()
+    if kind == "percentile":
+        return PercentileBaseline(percentile=percentile, window_s=max(window_s, 0.5))
     return NoneBaseline()
 
 
@@ -136,11 +139,13 @@ async def detect_events(
     overlap: float = Query(0.0, ge=0),
     min_duration: float = Query(1e-4, ge=0),
     direction: Literal["down", "up"] = Query("down"),
-    baseline: Literal["none", "median", "constant"] = Query("none"),
+    baseline: Literal["none", "median", "constant", "percentile"] = Query("none"),
     baseline_window: float = Query(0.05, gt=0),
+    baseline_percentile: float = Query(90.0, ge=0, le=100),
     max_plot_points: int = Query(50000, ge=100),
     include_plot: bool = Query(False),
     include_pulse_plot: bool = Query(True),
+    analyze_levels: bool = Query(True),
     t_start: float | None = Query(None, description="Analysis window start (s)"),
     t_end: float | None = Query(None, description="Analysis window end (s)"),
 ) -> DetectResponse:
@@ -166,7 +171,8 @@ async def detect_events(
             threshold_multiplier=threshold_multiplier,
             min_duration=min_duration,
             direction=direction,
-            baseline=_make_baseline(baseline, baseline_window),
+            baseline=_make_baseline(baseline, baseline_window, baseline_percentile),
+            analyze_levels=analyze_levels,
         )
         events = detector.detect_trace(trace, interval_length=interval_length, overlap=overlap)
         event_dicts = [e.to_dict() for e in events]

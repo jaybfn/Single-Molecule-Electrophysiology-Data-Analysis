@@ -177,6 +177,7 @@ def detection_work_signal(
     direction: str,
     baseline: str,
     baseline_window: float,
+    baseline_percentile: float = 90.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Approximate event-service residual (events downward) for live preview."""
     raw = np.asarray(current, dtype=float)
@@ -186,6 +187,16 @@ def detection_work_signal(
             win += 1
         s = pd.Series(raw)
         bl = s.rolling(win, center=True, min_periods=1).median().to_numpy()
+    elif baseline == "percentile" and sample_rate > 0:
+        win = max(3, int(max(baseline_window, 0.5) * sample_rate))
+        s = pd.Series(raw)
+        bl = (
+            s.rolling(win, center=True, min_periods=1)
+            .quantile(baseline_percentile / 100.0)
+            .to_numpy(dtype=float)
+        )
+        if np.isnan(bl).any():
+            bl = np.where(np.isnan(bl), float(np.percentile(raw, baseline_percentile)), bl)
     elif baseline == "constant":
         bl = np.full_like(raw, float(np.median(raw)))
     else:
@@ -205,6 +216,7 @@ def threshold_preview_figure(
     direction: str,
     baseline: str,
     baseline_window: float,
+    baseline_percentile: float = 90.0,
 ) -> go.Figure:
     t = np.asarray(time, dtype=float)
     c = np.asarray(current, dtype=float)
@@ -214,6 +226,7 @@ def threshold_preview_figure(
         direction=direction,
         baseline=baseline,
         baseline_window=baseline_window,
+        baseline_percentile=baseline_percentile,
     )
     mean = float(np.mean(work))
     std = float(np.std(work)) or 1e-12
@@ -348,15 +361,26 @@ See also `docs/first_analysis.md` in the repository.
 
         st.subheader("Detection")
         direction = st.selectbox("Event direction", ["down", "up"], index=0)
-        baseline = st.selectbox("Baseline", ["none", "median", "constant"], index=0)
+        baseline = st.selectbox(
+            "Baseline", ["none", "median", "constant", "percentile"], index=0
+        )
         baseline_window = st.number_input(
-            "Median window (s)", value=0.05, min_value=0.001, step=0.01
+            "Baseline window (s)", value=0.05, min_value=0.001, step=0.01
+        )
+        baseline_percentile = st.number_input(
+            "Baseline percentile",
+            value=90.0,
+            min_value=0.0,
+            max_value=100.0,
+            step=5.0,
+            help="For percentile baseline: ~90 for down events, ~10 for up",
         )
         std_mult = st.number_input("Std multiplier", value=0.25, min_value=0.0, step=0.05)
         thr_mult = st.number_input("Threshold multiplier", value=1.5, min_value=0.0, step=0.1)
         interval = st.number_input("Chunk interval (s)", value=5.0, min_value=0.1, step=0.5)
         overlap = st.number_input("Chunk overlap (s)", value=0.0, min_value=0.0, step=0.1)
         show_pulse = st.checkbox("Show pulse-shape idealization", value=True)
+        analyze_levels = st.checkbox("Multi-level conductance analysis", value=True)
         auto_preview = st.checkbox("Live threshold preview", value=True)
 
     if not uploaded:
@@ -439,6 +463,7 @@ See also `docs/first_analysis.md` in the repository.
                 direction=direction,
                 baseline=baseline,
                 baseline_window=baseline_window,
+                baseline_percentile=baseline_percentile,
             )
             st.plotly_chart(fig_prev, use_container_width=True)
             st.caption(
@@ -466,8 +491,10 @@ See also `docs/first_analysis.md` in the repository.
                         direction=direction,
                         baseline=baseline,
                         baseline_window=baseline_window,
+                        baseline_percentile=baseline_percentile,
                         include_plot=False,
                         include_pulse_plot=show_pulse,
+                        analyze_levels=analyze_levels,
                         t_start=t_start,
                         t_end=t_end,
                     )
@@ -592,7 +619,11 @@ See also `docs/first_analysis.md` in the repository.
 
     with psd_tab:
         fit = st.checkbox("Fit model", value=True)
-        fit_model = st.selectbox("Fit model type", ["lorentzian", "composite", "none"], index=0)
+        fit_model = st.selectbox(
+            "Fit model type",
+            ["lorentzian", "composite", "lorentzian_white", "double_lorentzian", "none"],
+            index=0,
+        )
         window = st.selectbox("Welch window", ["hamming", "hann", "blackman", "flattop"], index=0)
         scaling = st.selectbox("Scaling", ["spectrum", "density"], index=0)
         nperseg = st.number_input("nperseg (0=auto)", value=0, min_value=0, step=256)
@@ -635,7 +666,7 @@ See also `docs/first_analysis.md` in the repository.
 
         psd_result = st.session_state.get("psd_result")
         if psd_result:
-            cols = st.columns(4)
+            cols = st.columns(5)
             cols[0].metric(
                 "S0",
                 round(psd_result["S0"], 4) if psd_result.get("S0") is not None else "—",
@@ -651,6 +682,10 @@ See also `docs/first_analysis.md` in the repository.
             cols[3].metric(
                 "alpha",
                 round(psd_result["alpha"], 3) if psd_result.get("alpha") is not None else "—",
+            )
+            cols[4].metric(
+                "N",
+                round(psd_result["N"], 6) if psd_result.get("N") is not None else "—",
             )
             psd_payload = {
                 "fs": psd_result.get("fs"),

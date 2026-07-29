@@ -221,3 +221,205 @@ class CompositePSDFitter:
             self.A_opt,  # type: ignore[arg-type]
             self.alpha_opt,  # type: ignore[arg-type]
         )
+
+
+class LorentzianWhiteFitter:
+    """
+    Lorentzian plus white-noise floor:
+
+        S(f) = S0 / (1 + (f/fc)^2) + N
+    """
+
+    def __init__(
+        self,
+        frequencies: NDArray[np.floating],
+        power_spectrum: NDArray[np.floating],
+        *,
+        max_frequency: float = 10000.0,
+    ):
+        self.frequencies = np.asarray(frequencies, dtype=float)
+        self.power_spectrum = np.asarray(power_spectrum, dtype=float)
+        self.max_frequency = float(max_frequency)
+        self.S_0_opt: float | None = None
+        self.f_c_opt: float | None = None
+        self.N_opt: float | None = None
+        self.filtered_frequencies: NDArray[np.floating] | None = None
+        self.filtered_power_spectrum: NDArray[np.floating] | None = None
+        self.diagnostics: PSDFitDiagnostics | None = None
+
+    @staticmethod
+    def model(f: NDArray[np.floating], S_0: float, f_c: float, N: float) -> NDArray[np.floating]:
+        f = np.asarray(f, dtype=float)
+        return S_0 / (1.0 + (f / f_c) ** 2) + N
+
+    def residuals_log(
+        self,
+        params: NDArray[np.floating],
+        f_log: NDArray[np.floating],
+        y_observed: NDArray[np.floating],
+    ) -> NDArray[np.floating]:
+        S_0, f_c, N = (float(x) for x in params)
+        y_model = np.log10(np.clip(self.model(10**f_log, S_0, f_c, N), 1e-30, None))
+        return y_observed - y_model
+
+    def fit(self) -> dict[str, float]:
+        self.filtered_frequencies, self.filtered_power_spectrum = _filter_psd(
+            self.frequencies, self.power_spectrum, max_frequency=self.max_frequency
+        )
+        s0_guess = float(np.median(self.filtered_power_spectrum[: max(3, len(self.filtered_power_spectrum) // 10)]))
+        n_guess = float(np.percentile(self.filtered_power_spectrum, 10))
+        initial = np.array([max(s0_guess, 1e-6), 1e3, max(n_guess, 1e-12)])
+        result = least_squares(
+            self.residuals_log,
+            initial,
+            args=(
+                np.log10(self.filtered_frequencies),
+                np.log10(self.filtered_power_spectrum),
+            ),
+            method="trf",
+            bounds=([1e-12, 1e-2, 1e-18], [1e7, 1e5, 1e3]),
+            max_nfev=100000,
+        )
+        self.S_0_opt, self.f_c_opt, self.N_opt = (float(x) for x in result.x)
+        y_obs = np.log10(self.filtered_power_spectrum)
+        y_model = np.log10(
+            np.clip(
+                self.model(self.filtered_frequencies, self.S_0_opt, self.f_c_opt, self.N_opt),
+                1e-30,
+                None,
+            )
+        )
+        r2, rmse = _log_r2(y_obs, y_model)
+        self.diagnostics = PSDFitDiagnostics(
+            r2_log=r2, rmse_log=rmse, n_points=len(self.filtered_frequencies)
+        )
+        return {"S0": self.S_0_opt, "fc": self.f_c_opt, "N": self.N_opt}
+
+    def fitted_curve(self) -> NDArray[np.floating]:
+        if None in (self.S_0_opt, self.f_c_opt, self.N_opt):
+            raise RuntimeError("Call fit() first")
+        assert self.filtered_frequencies is not None
+        return self.model(
+            self.filtered_frequencies,
+            self.S_0_opt,  # type: ignore[arg-type]
+            self.f_c_opt,  # type: ignore[arg-type]
+            self.N_opt,  # type: ignore[arg-type]
+        )
+
+
+class MultiLorentzianFitter:
+    """
+    Sum of ``n`` Lorentzians plus optional white floor:
+
+        S(f) = Σ_i S0_i / (1 + (f/fc_i)^2) + N
+    """
+
+    def __init__(
+        self,
+        frequencies: NDArray[np.floating],
+        power_spectrum: NDArray[np.floating],
+        *,
+        n_components: int = 2,
+        include_white: bool = True,
+        max_frequency: float = 10000.0,
+    ):
+        if n_components < 1 or n_components > 3:
+            raise ValueError("n_components must be in 1..3")
+        self.n_components = int(n_components)
+        self.include_white = bool(include_white)
+        self.frequencies = np.asarray(frequencies, dtype=float)
+        self.power_spectrum = np.asarray(power_spectrum, dtype=float)
+        self.max_frequency = float(max_frequency)
+        self.params: dict[str, float] = {}
+        self.filtered_frequencies: NDArray[np.floating] | None = None
+        self.filtered_power_spectrum: NDArray[np.floating] | None = None
+        self.diagnostics: PSDFitDiagnostics | None = None
+        # Convenience mirrors for first component / noise
+        self.S_0_opt: float | None = None
+        self.f_c_opt: float | None = None
+        self.N_opt: float | None = None
+
+    def model(self, f: NDArray[np.floating], theta: NDArray[np.floating]) -> NDArray[np.floating]:
+        f = np.asarray(f, dtype=float)
+        out = np.zeros_like(f, dtype=float)
+        for i in range(self.n_components):
+            s0 = float(theta[2 * i])
+            fc = float(theta[2 * i + 1])
+            out = out + s0 / (1.0 + (f / fc) ** 2)
+        if self.include_white:
+            out = out + float(theta[-1])
+        return out
+
+    def residuals_log(
+        self,
+        params: NDArray[np.floating],
+        f_log: NDArray[np.floating],
+        y_observed: NDArray[np.floating],
+    ) -> NDArray[np.floating]:
+        y_model = np.log10(np.clip(self.model(10**f_log, params), 1e-30, None))
+        return y_observed - y_model
+
+    def fit(self) -> dict[str, float]:
+        self.filtered_frequencies, self.filtered_power_spectrum = _filter_psd(
+            self.frequencies, self.power_spectrum, max_frequency=self.max_frequency
+        )
+        s0_guess = float(
+            np.median(self.filtered_power_spectrum[: max(3, len(self.filtered_power_spectrum) // 10)])
+        )
+        f_lo = float(self.filtered_frequencies[0])
+        f_hi = float(self.filtered_frequencies[-1])
+        initial: list[float] = []
+        lo: list[float] = []
+        hi: list[float] = []
+        for i in range(self.n_components):
+            frac = (i + 1) / (self.n_components + 1)
+            fc_guess = f_lo * (f_hi / max(f_lo, 1e-12)) ** frac
+            initial.extend([max(s0_guess / (i + 1), 1e-6), max(fc_guess, 1.0)])
+            lo.extend([1e-12, 1e-2])
+            hi.extend([1e7, 1e5])
+        if self.include_white:
+            n_guess = float(np.percentile(self.filtered_power_spectrum, 10))
+            initial.append(max(n_guess, 1e-12))
+            lo.append(1e-18)
+            hi.append(1e3)
+
+        result = least_squares(
+            self.residuals_log,
+            np.array(initial),
+            args=(
+                np.log10(self.filtered_frequencies),
+                np.log10(self.filtered_power_spectrum),
+            ),
+            method="trf",
+            bounds=(lo, hi),
+            max_nfev=100000,
+        )
+        theta = result.x
+        params: dict[str, float] = {}
+        for i in range(self.n_components):
+            params[f"S0_{i + 1}"] = float(theta[2 * i])
+            params[f"fc_{i + 1}"] = float(theta[2 * i + 1])
+        if self.include_white:
+            params["N"] = float(theta[-1])
+            self.N_opt = params["N"]
+        self.S_0_opt = params.get("S0_1")
+        self.f_c_opt = params.get("fc_1")
+        self.params = params
+
+        y_obs = np.log10(self.filtered_power_spectrum)
+        y_model = np.log10(np.clip(self.model(self.filtered_frequencies, theta), 1e-30, None))
+        r2, rmse = _log_r2(y_obs, y_model)
+        self.diagnostics = PSDFitDiagnostics(
+            r2_log=r2, rmse_log=rmse, n_points=len(self.filtered_frequencies)
+        )
+        return params
+
+    def fitted_curve(self) -> NDArray[np.floating]:
+        if not self.params or self.filtered_frequencies is None:
+            raise RuntimeError("Call fit() first")
+        theta: list[float] = []
+        for i in range(self.n_components):
+            theta.extend([self.params[f"S0_{i + 1}"], self.params[f"fc_{i + 1}"]])
+        if self.include_white:
+            theta.append(self.params["N"])
+        return self.model(self.filtered_frequencies, np.array(theta))
