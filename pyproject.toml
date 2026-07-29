@@ -1,0 +1,133 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pynanopore"
+version = "2.0.0"
+description = "Modular toolkit for single-molecule nanopore electrophysiology analysis"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Jayesh Arun Bafna", email = "jayesh.bfn@gmail.com" },
+]
+keywords = ["nanopore", "electrophysiology", "single-molecule", "signal-processing"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.1.0",
+    "scipy>=1.11.3",
+    "pyabf>=2.3.8",
+]
+
+[project.optional-dependencies]
+viz = [
+    "plotly>=5.16.1",
+]
+ui = [
+    "streamlit>=1.26.0",
+    "plotly>=5.16.1",
+    "httpx>=0.27.0",
+]
+services = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+    "httpx>=0.27.0",
+    "python-multipart>=0.0.9",
+    "plotly>=5.16.1",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.1",
+    "httpx>=0.27.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+    "pandas-stubs>=2.1.0",
+    "types-requests>=2.31.0",
+    "plotly>=5.16.1",
+    "fastapi>=0.110.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+]
+all = [
+    "pynanopore[viz,ui,services,dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/jaybfn/Single-Molecule-Electrophysiology-Data-Analysis"
+Repository = "https://github.com/jaybfn/Single-Molecule-Electrophysiology-Data-Analysis"
+
+[project.scripts]
+pynanopore = "pynanopore.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["packages/pynanopore/src/pynanopore"]
+
+[tool.hatch.build.targets.wheel.sources]
+"packages/pynanopore/src" = ""
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "packages/pynanopore/src/pynanopore",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["packages/pynanopore/src"]
+addopts = "-q --cov=pynanopore --cov-report=term-missing"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["packages/pynanopore/src", "services", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501", "B008"]
+
+[tool.mypy]
+# Do not pin python_version — use the active interpreter (CI matrix is 3.10–3.12).
+# Pinning 3.10 breaks on 3.12 because newer NumPy stubs use PEP 695 `type` statements.
+strict = false
+warn_return_any = false
+warn_unused_ignores = true
+ignore_missing_imports = true
+mypy_path = "packages/pynanopore/src"
+packages = ["pynanopore"]
+
+[[tool.mypy.overrides]]
+module = [
+    "numpy",
+    "numpy.*",
+    "scipy",
+    "scipy.*",
+    "pandas",
+    "pandas.*",
+    "plotly",
+    "plotly.*",
+    "pyabf",
+    "pyabf.*",
+]
+follow_imports = "skip"
+ignore_errors = true
+
+
+[tool.coverage.run]
+source = ["packages/pynanopore/src/pynanopore"]
+omit = ["*/cli.py"]

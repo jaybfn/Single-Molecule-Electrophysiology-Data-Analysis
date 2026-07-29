@@ -1,5 +1,46 @@
-notebook/test.ipynb
-data/2019_04_03_0006.abf
-build
-dist
-pynano_analytics.egg-info
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Build / dist
+build/
+dist/
+packages/pynanopore/*.egg-info/
+
+# Test / coverage / type checkers
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Local data / notebooks (large binaries)
+data/*.abf
+notebook/*.ipynb
+*.abf
+
+# Uploads / runtime
+uploads/
+.tmp/
+.env
+.env.*
+
+# Docker
+*.log
