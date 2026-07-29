@@ -108,7 +108,13 @@ def _build_event(
     delta_i_over_i0 = delta_i / abs(i0) if abs(i0) > 1e-12 else float("nan")
 
     # Area: integral of |I0 - I| over the event (trapezoid)
-    dt = 1.0 / sample_rate if sample_rate > 0 else float(np.median(np.diff(time_segment))) if len(time_segment) > 1 else 0.0
+    dt = (
+        1.0 / sample_rate
+        if sample_rate > 0
+        else float(np.median(np.diff(time_segment)))
+        if len(time_segment) > 1
+        else 0.0
+    )
     area = float(np.sum(np.abs(i0 - segment)) * dt)
 
     rise_time, fall_time = _transition_times(segment, time_segment, i0, blockade_mean)

@@ -77,9 +77,7 @@ def main(argv: list[str] | None = None) -> int:
             direction=args.direction,
             baseline=baseline,
         )
-        events = detector.detect_trace(
-            trace, interval_length=args.interval, overlap=args.overlap
-        )
+        events = detector.detect_trace(trace, interval_length=args.interval, overlap=args.overlap)
         df = pd.DataFrame([e.to_dict() for e in events])
         if args.output:
             df.to_csv(args.output, index=False)
