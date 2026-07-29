@@ -146,10 +146,16 @@ def plot_pulse_shape(
     go = _require_plotly()
     fig = go.Figure()
 
+    # Plotly/Pydantic JSON responses require plain Python lists, not ndarrays
+    time_list = np.asarray(time, dtype=float).tolist()
+    current_list = np.asarray(current, dtype=float).tolist()
+    pulse_time = np.asarray(pulse.time, dtype=float).tolist()
+    pulse_ideal = np.asarray(pulse.idealized, dtype=float).tolist()
+
     fig.add_trace(
         go.Scatter(
-            x=time,
-            y=current,
+            x=time_list,
+            y=current_list,
             mode="lines",
             name="Raw signal",
             line=dict(color="rgba(80,80,80,0.7)", width=1),
@@ -158,8 +164,8 @@ def plot_pulse_shape(
     if show_smoothed:
         fig.add_trace(
             go.Scatter(
-                x=time,
-                y=gaussian_filter1d(current, sigma=sigma),
+                x=time_list,
+                y=gaussian_filter1d(current, sigma=sigma).tolist(),
                 mode="lines",
                 name="Smoothed",
                 line=dict(color="rgba(120,120,180,0.8)", width=1),
@@ -168,8 +174,8 @@ def plot_pulse_shape(
 
     fig.add_trace(
         go.Scatter(
-            x=pulse.time,
-            y=pulse.idealized,
+            x=pulse_time,
+            y=pulse_ideal,
             mode="lines",
             name="Pulse shape",
             line=dict(color="black", width=2, shape="hv"),
@@ -181,8 +187,8 @@ def plot_pulse_shape(
     if len(rt):
         fig.add_trace(
             go.Scatter(
-                x=rt,
-                y=ry,
+                x=np.asarray(rt, dtype=float).tolist(),
+                y=np.asarray(ry, dtype=float).tolist(),
                 mode="markers",
                 name="Rising edge",
                 marker=dict(color="red", size=9, symbol="line-ns-open"),
@@ -191,8 +197,8 @@ def plot_pulse_shape(
     if len(ft):
         fig.add_trace(
             go.Scatter(
-                x=ft,
-                y=fy,
+                x=np.asarray(ft, dtype=float).tolist(),
+                y=np.asarray(fy, dtype=float).tolist(),
                 mode="markers",
                 name="Falling edge",
                 marker=dict(color="blue", size=9, symbol="line-ns-open"),

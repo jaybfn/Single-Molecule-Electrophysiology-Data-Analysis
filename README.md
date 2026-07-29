@@ -265,6 +265,24 @@ docker compose up --build
 - Gateway OpenAPI: http://localhost:8000/docs  
 - Event service docs: http://localhost:8001/docs  
 
+Gateway and analysis services wait on Docker **healthchecks** before dependents start. Useful env vars (compose defaults shown):
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `LOG_LEVEL` | `INFO` | Service log level |
+| `LOG_JSON` | `true` | Structured JSON logs |
+| `MAX_UPLOAD_MB` | `100` | Reject larger uploads with HTTP 413 |
+| `HTTP_TIMEOUT_S` | `120` | General HTTP timeout setting |
+| `DOWNSTREAM_TIMEOUT_S` | `120` | Gateway → service call timeout |
+
+All HTTP responses include `X-Request-ID` (pass one in to correlate gateway → services). Errors use `{ "error": { "code", "message", "request_id", ... } }`.
+
+Pinned dependencies for reproducible installs: [`requirements.lock`](requirements.lock) (use as `pip install ... -c requirements.lock`). Regenerate with:
+
+```bash
+pip-compile --extra viz --extra ui --extra services --extra dev -o requirements.lock pyproject.toml
+```
+
 ### Gateway API overview
 
 - `GET /health` — gateway + downstream health  

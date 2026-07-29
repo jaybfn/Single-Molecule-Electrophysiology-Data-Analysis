@@ -7,25 +7,18 @@ from typing import Any, Literal
 import httpx
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from pynanopore.serving import GatewaySettings, configure_service
+from pynanopore.serving.app_factory import enforce_upload_size
+
+settings = GatewaySettings(service_name="gateway")
 
 app = FastAPI(
     title="Pynanopore Gateway",
-    version="2.0.0",
+    version="2.4.0",
     description="Single entrypoint routing to event, stats, and PSD services.",
 )
-
-
-class GatewaySettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-
-    event_service_url: str = "http://event-service:8001"
-    stats_service_url: str = "http://stats-service:8002"
-    psd_service_url: str = "http://psd-service:8003"
-    http_timeout_s: float = 120.0
-
-
-settings = GatewaySettings()
+logger = configure_service(app, settings)
 
 
 class StatsProxyRequest(BaseModel):
@@ -50,6 +43,17 @@ class PSDProxyRequest(BaseModel):
     window: str = "hamming"
     scaling: Literal["density", "spectrum"] = "spectrum"
     skip_bins: int = 2
+
+
+def _rid(request: Request) -> str | None:
+    return getattr(request.state, "request_id", None)
+
+
+def _downstream_headers(request: Request) -> dict[str, str]:
+    rid = _rid(request)
+    if not rid:
+        return {}
+    return {settings.request_id_header: rid}
 
 
 @app.get("/health")
@@ -81,6 +85,7 @@ async def health() -> dict[str, Any]:
 
 @app.post("/v1/detect")
 async def detect(
+    request: Request,
     file: UploadFile = File(...),
     std_multiplier: float = Query(0.25),
     threshold_multiplier: float = Query(1.5),
@@ -95,6 +100,7 @@ async def detect(
     include_pulse_plot: bool = Query(True),
 ) -> Any:
     data = await file.read()
+    enforce_upload_size(data, settings, _rid(request))
     files = {
         "file": (
             file.filename or "upload.abf",
@@ -115,12 +121,13 @@ async def detect(
         "include_plot": include_plot,
         "include_pulse_plot": include_pulse_plot,
     }
-    async with httpx.AsyncClient(timeout=settings.http_timeout_s) as client:
+    async with httpx.AsyncClient(timeout=settings.downstream_timeout_s) as client:
         try:
             resp = await client.post(
                 f"{settings.event_service_url}/v1/detect",
                 files=files,
                 params=params,
+                headers=_downstream_headers(request),
             )
         except httpx.HTTPError as exc:
             raise HTTPException(
@@ -132,12 +139,13 @@ async def detect(
 
 
 @app.post("/v1/dwelltime")
-async def dwelltime(body: StatsProxyRequest) -> Any:
-    async with httpx.AsyncClient(timeout=settings.http_timeout_s) as client:
+async def dwelltime(request: Request, body: StatsProxyRequest) -> Any:
+    async with httpx.AsyncClient(timeout=settings.downstream_timeout_s) as client:
         try:
             resp = await client.post(
                 f"{settings.stats_service_url}/v1/dwelltime",
                 json=body.model_dump(),
+                headers=_downstream_headers(request),
             )
         except httpx.HTTPError as exc:
             raise HTTPException(
@@ -149,12 +157,13 @@ async def dwelltime(body: StatsProxyRequest) -> Any:
 
 
 @app.post("/v1/psd")
-async def psd(body: PSDProxyRequest) -> Any:
-    async with httpx.AsyncClient(timeout=settings.http_timeout_s) as client:
+async def psd(request: Request, body: PSDProxyRequest) -> Any:
+    async with httpx.AsyncClient(timeout=settings.downstream_timeout_s) as client:
         try:
             resp = await client.post(
                 f"{settings.psd_service_url}/v1/psd",
                 json=body.model_dump(),
+                headers=_downstream_headers(request),
             )
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=f"psd-service unreachable: {exc}") from exc
@@ -165,6 +174,7 @@ async def psd(body: PSDProxyRequest) -> Any:
 
 @app.post("/v1/psd/upload")
 async def psd_upload(
+    request: Request,
     file: UploadFile = File(...),
     fs: float | None = Query(None),
     fit: bool = Query(True),
@@ -178,6 +188,7 @@ async def psd_upload(
     skip_bins: int = Query(2),
 ) -> Any:
     data = await file.read()
+    enforce_upload_size(data, settings, _rid(request))
     files = {
         "file": (
             file.filename or "upload.abf",
@@ -200,22 +211,16 @@ async def psd_upload(
         params["nperseg"] = nperseg
     if noverlap is not None:
         params["noverlap"] = noverlap
-    async with httpx.AsyncClient(timeout=settings.http_timeout_s) as client:
+    async with httpx.AsyncClient(timeout=settings.downstream_timeout_s) as client:
         try:
             resp = await client.post(
                 f"{settings.psd_service_url}/v1/psd/upload",
                 files=files,
                 params=params,
+                headers=_downstream_headers(request),
             )
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=f"psd-service unreachable: {exc}") from exc
     if resp.status_code >= 400:
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
     return resp.json()
-
-
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["X-Service"] = "gateway"
-    return response
