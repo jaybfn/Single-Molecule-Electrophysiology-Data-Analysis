@@ -26,7 +26,7 @@ settings = ServiceSettings(service_name="event-service")
 
 app = FastAPI(
     title="Pynanopore Event Service",
-    version="2.4.0",
+    version="2.5.0",
     description="Detect translocation events in ABF/CSV ion-current recordings.",
 )
 configure_service(app, settings)
@@ -42,6 +42,21 @@ class DetectResponse(BaseModel):
     pulse_plot: dict[str, Any] | None = None
     preview_time: list[float] | None = None
     preview_current: list[float] | None = None
+    window_start_s: float | None = None
+    window_end_s: float | None = None
+
+
+class PreviewResponse(BaseModel):
+    request_id: str
+    sample_rate: float
+    duration_s: float
+    t_min: float
+    t_max: float
+    n_points_total: int
+    n_points_returned: int
+    time: list[float]
+    current: list[float]
+    filename: str | None = None
 
 
 def _make_baseline(kind: str, window_s: float):
@@ -52,9 +67,63 @@ def _make_baseline(kind: str, window_s: float):
     return NoneBaseline()
 
 
+def _downsample(time, current, max_points: int):
+    n = len(time)
+    if n <= max_points:
+        return time, current
+    step = max(1, n // max_points)
+    return time[::step], current[::step]
+
+
+def _apply_window(trace, t_start: float | None, t_end: float | None):
+    if t_start is None and t_end is None:
+        return trace
+    return trace.slice_by_time(t_start, t_end)
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "event-service"}
+
+
+@app.post("/v1/preview", response_model=PreviewResponse)
+async def preview_trace(
+    request: Request,
+    file: UploadFile = File(...),
+    max_points: int = Query(20000, ge=100, le=200000),
+) -> PreviewResponse:
+    """Load a recording and return a downsampled preview for UI threshold tuning."""
+    request_id = getattr(request.state, "request_id", "unknown")
+    suffix = Path(file.filename or "upload.abf").suffix.lower()
+    if suffix not in {".abf", ".csv"}:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {suffix}")
+    try:
+        raw = await file.read()
+        enforce_upload_size(raw, settings, request_id)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(raw)
+            tmp_path = Path(tmp.name)
+        trace = load_trace(tmp_path)
+        t, c = _downsample(trace.time, trace.current, max_points)
+        return PreviewResponse(
+            request_id=request_id,
+            sample_rate=float(trace.sample_rate),
+            duration_s=float(trace.duration),
+            t_min=float(trace.time[0]),
+            t_max=float(trace.time[-1]),
+            n_points_total=len(trace.time),
+            n_points_returned=len(t),
+            time=t.tolist(),
+            current=c.tolist(),
+            filename=file.filename,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        if "tmp_path" in locals() and tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
 
 
 @app.post("/v1/detect", response_model=DetectResponse)
@@ -72,6 +141,8 @@ async def detect_events(
     max_plot_points: int = Query(50000, ge=100),
     include_plot: bool = Query(False),
     include_pulse_plot: bool = Query(True),
+    t_start: float | None = Query(None, description="Analysis window start (s)"),
+    t_end: float | None = Query(None, description="Analysis window end (s)"),
 ) -> DetectResponse:
     request_id = getattr(request.state, "request_id", "unknown")
     suffix = Path(file.filename or "upload.abf").suffix.lower()
@@ -85,7 +156,11 @@ async def detect_events(
             tmp.write(raw)
             tmp_path = Path(tmp.name)
 
-        trace = load_trace(tmp_path)
+        full = load_trace(tmp_path)
+        trace = _apply_window(full, t_start, t_end)
+        window_start = float(trace.time[0])
+        window_end = float(trace.time[-1])
+
         detector = EventDetector(
             std_multiplier=std_multiplier,
             threshold_multiplier=threshold_multiplier,
@@ -99,11 +174,10 @@ async def detect_events(
         n = len(trace.time)
         end_idx = min(n, max_plot_points)
         if events:
+            # Prefer last event sample index over absolute-time heuristics
             last_event = events[min(len(events), 100) - 1]
-            approx_idx = int(last_event.end_time * trace.sample_rate) + int(
-                0.02 * trace.sample_rate
-            )
-            end_idx = min(n, max(end_idx, approx_idx))
+            if last_event.end_idx >= 0:
+                end_idx = min(n, max(end_idx, last_event.end_idx + int(0.02 * trace.sample_rate)))
 
         preview_time = trace.time[:end_idx].tolist()
         preview_current = trace.current[:end_idx].tolist()
@@ -153,6 +227,8 @@ async def detect_events(
             pulse_plot=pulse_plot,
             preview_time=preview_time,
             preview_current=preview_current,
+            window_start_s=window_start,
+            window_end_s=window_end,
         )
     except HTTPException:
         raise
