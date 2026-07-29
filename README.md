@@ -15,6 +15,12 @@ It provides:
 **Dwell-time lifetime fitting** (MLE, AIC/BIC): see
 [docs/dwelltime_math.md](docs/dwelltime_math.md).
 
+**PSD models** (Welch, Lorentzian, composite \(1/f\)): see
+[docs/psd_math.md](docs/psd_math.md).
+
+**Batch multi-file pipelines**: see
+[docs/batch_analysis.md](docs/batch_analysis.md).
+
 ## Architecture
 
 Pynanopore is split into a **shared scientific core** and **stateless HTTP microservices**. Clients never call analysis services directly in the Compose deployment: they talk to the **gateway** (BFF), which routes requests, aggregates health, and keeps service URLs internal.

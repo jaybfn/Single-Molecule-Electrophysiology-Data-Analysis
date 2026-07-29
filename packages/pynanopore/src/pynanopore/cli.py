@@ -9,13 +9,16 @@ import sys
 import pandas as pd
 
 from pynanopore import (
+    BatchDetectConfig,
     DwellTimeExponentialFit,
     EventDetector,
     LorentzianFitter,
     PSDAnalyzer,
     __version__,
+    batch_detect,
     load_trace,
 )
+from pynanopore.psd.lorentzian import CompositePSDFitter
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -47,6 +50,19 @@ def main(argv: list[str] | None = None) -> int:
     detect.add_argument("--baseline-window", type=float, default=0.05, help="Median window (s)")
     detect.add_argument("--output", "-o", help="Write events CSV to this path")
 
+    batch = sub.add_parser("batch-detect", help="Detect events for all ABF/CSV files in a folder")
+    batch.add_argument("input_dir", help="Folder containing .abf / .csv recordings")
+    batch.add_argument("-o", "--output-dir", required=True, help="Output directory for results")
+    batch.add_argument("--std-multiplier", type=float, default=0.25)
+    batch.add_argument("--threshold-multiplier", type=float, default=1.5)
+    batch.add_argument("--interval", type=float, default=5.0)
+    batch.add_argument("--overlap", type=float, default=0.0)
+    batch.add_argument("--direction", choices=["down", "up"], default="down")
+    batch.add_argument("--baseline", choices=["none", "median", "constant"], default="none")
+    batch.add_argument("--baseline-window", type=float, default=0.05)
+    batch.add_argument("--no-dwell-fit", action="store_true", help="Skip per-file dwell MLE")
+    batch.add_argument("--dwell-fit", choices=["single", "double", "auto"], default="single")
+
     dwell = sub.add_parser("dwelltime", help="Fit dwell-time histogram from events CSV")
     dwell.add_argument("events_csv", help="CSV with a 'difference' column")
     dwell.add_argument("--fit", choices=["single", "double", "auto"], default="single")
@@ -54,10 +70,20 @@ def main(argv: list[str] | None = None) -> int:
     dwell.add_argument("--binning", choices=["linear", "log"], default="linear")
     dwell.add_argument("--bins", type=int, default=50)
 
-    psd = sub.add_parser("psd", help="Compute PSD (+ optional Lorentzian fit)")
+    psd = sub.add_parser("psd", help="Compute PSD (+ optional model fit)")
     psd.add_argument("file", help="Path to .abf or .csv file")
     psd.add_argument("--fs", type=float, default=None, help="Override sample rate")
-    psd.add_argument("--fit", action="store_true", help="Fit Lorentzian model")
+    psd.add_argument("--fit", action="store_true", help="Fit a spectral model")
+    psd.add_argument(
+        "--fit-model",
+        choices=["lorentzian", "composite"],
+        default="lorentzian",
+    )
+    psd.add_argument("--nperseg", type=int, default=None)
+    psd.add_argument("--noverlap", type=int, default=None)
+    psd.add_argument("--window", default="hamming")
+    psd.add_argument("--scaling", choices=["spectrum", "density"], default="spectrum")
+    psd.add_argument("--max-frequency", type=float, default=10000.0)
 
     args = parser.parse_args(argv)
 
@@ -88,6 +114,23 @@ def main(argv: list[str] | None = None) -> int:
             print(df.to_string(index=False) if not df.empty else "No events detected")
         return 0
 
+    if args.command == "batch-detect":
+        cfg = BatchDetectConfig(
+            std_multiplier=args.std_multiplier,
+            threshold_multiplier=args.threshold_multiplier,
+            direction=args.direction,
+            baseline=args.baseline,
+            baseline_window=args.baseline_window,
+            interval_length=args.interval,
+            overlap=args.overlap,
+            fit_dwelltime=not args.no_dwell_fit,
+            dwell_fit_type=args.dwell_fit,
+        )
+        summary = batch_detect(args.input_dir, args.output_dir, cfg)
+        ok = int((summary["status"] == "ok").sum()) if "status" in summary.columns else 0
+        print(f"Processed {len(summary)} files ({ok} ok). Summary: {args.output_dir}/summary.csv")
+        return 0
+
     if args.command == "dwelltime":
         events_df = pd.read_csv(args.events_csv)
         fit = DwellTimeExponentialFit(events_df, bins=args.bins, binning=args.binning)
@@ -99,16 +142,37 @@ def main(argv: list[str] | None = None) -> int:
         trace = load_trace(args.file)
         fs = args.fs if args.fs is not None else trace.sample_rate
         analyzer = PSDAnalyzer(fs=fs)
-        frequencies, power_spectrum = analyzer.compute_psd_with_hamming(trace.current)
+        frequencies, power_spectrum = analyzer.compute_psd(
+            trace.current,
+            nperseg=args.nperseg,
+            noverlap=args.noverlap,
+            window=args.window,
+            scaling=args.scaling,
+        )
         psd_result: dict = {
             "n_frequencies": len(frequencies),
             "fs": fs,
+            "window": args.window,
+            "scaling": args.scaling,
         }
         if args.fit:
-            fitter = LorentzianFitter(frequencies, power_spectrum)
-            s0, fc = fitter.fit_lorentzian()
-            psd_result["S0"] = s0
-            psd_result["fc"] = fc
+            if args.fit_model == "composite":
+                comp = CompositePSDFitter(
+                    frequencies, power_spectrum, max_frequency=args.max_frequency
+                )
+                params = comp.fit()
+                psd_result.update(params)
+                if comp.diagnostics:
+                    psd_result["diagnostics"] = comp.diagnostics.to_dict()
+            else:
+                lor = LorentzianFitter(
+                    frequencies, power_spectrum, max_frequency=args.max_frequency
+                )
+                s0, fc = lor.fit_lorentzian()
+                psd_result["S0"] = s0
+                psd_result["fc"] = fc
+                if lor.diagnostics:
+                    psd_result["diagnostics"] = lor.diagnostics.to_dict()
         print(json.dumps(psd_result, indent=2))
         return 0
 

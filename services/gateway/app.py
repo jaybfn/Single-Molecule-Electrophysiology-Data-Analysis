@@ -42,8 +42,14 @@ class PSDProxyRequest(BaseModel):
     current: list[float]
     fs: float = Field(..., gt=0)
     fit: bool = True
+    fit_model: Literal["lorentzian", "composite", "none"] = "lorentzian"
     include_plot: bool = False
     max_frequency: float = 10000.0
+    nperseg: int | None = None
+    noverlap: int | None = None
+    window: str = "hamming"
+    scaling: Literal["density", "spectrum"] = "spectrum"
+    skip_bins: int = 2
 
 
 @app.get("/health")
@@ -162,8 +168,14 @@ async def psd_upload(
     file: UploadFile = File(...),
     fs: float | None = Query(None),
     fit: bool = Query(True),
+    fit_model: Literal["lorentzian", "composite", "none"] = Query("lorentzian"),
     include_plot: bool = Query(False),
     max_frequency: float = Query(10000.0),
+    nperseg: int | None = Query(None),
+    noverlap: int | None = Query(None),
+    window: str = Query("hamming"),
+    scaling: Literal["density", "spectrum"] = Query("spectrum"),
+    skip_bins: int = Query(2),
 ) -> Any:
     data = await file.read()
     files = {
@@ -175,11 +187,19 @@ async def psd_upload(
     }
     params: dict[str, Any] = {
         "fit": fit,
+        "fit_model": fit_model,
         "include_plot": include_plot,
         "max_frequency": max_frequency,
+        "window": window,
+        "scaling": scaling,
+        "skip_bins": skip_bins,
     }
     if fs is not None:
         params["fs"] = fs
+    if nperseg is not None:
+        params["nperseg"] = nperseg
+    if noverlap is not None:
+        params["noverlap"] = noverlap
     async with httpx.AsyncClient(timeout=settings.http_timeout_s) as client:
         try:
             resp = await client.post(
