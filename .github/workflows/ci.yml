@@ -36,7 +36,7 @@ jobs:
         run: ruff format --check packages services tests
 
       - name: Mypy
-        run: mypy packages/pynanopore/src/pynanopore
+        run: mypy --python-version ${{ matrix.python-version }} packages/pynanopore/src/pynanopore
 
       - name: Pytest
         run: pytest tests/ --cov=pynanopore --cov-report=term-missing
