@@ -15,7 +15,7 @@ settings = GatewaySettings(service_name="gateway")
 
 app = FastAPI(
     title="Pynanopore Gateway",
-    version="2.5.0",
+    version="2.7.0",
     description="Single entrypoint routing to event, stats, and PSD services.",
 )
 logger = configure_service(app, settings)

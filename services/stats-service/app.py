@@ -16,7 +16,7 @@ settings = ServiceSettings(service_name="stats-service")
 
 app = FastAPI(
     title="Pynanopore Stats Service",
-    version="2.4.0",
+    version="2.7.0",
     description="Dwell-time histogram and exponential lifetime fitting (MLE / AIC).",
 )
 configure_service(app, settings)

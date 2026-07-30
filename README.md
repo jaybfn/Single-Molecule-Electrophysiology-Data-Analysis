@@ -26,6 +26,37 @@ see [docs/science_phase_e.md](docs/science_phase_e.md).
 **Batch multi-file pipelines**: see
 [docs/batch_analysis.md](docs/batch_analysis.md).
 
+**Changelog / releasing:** [CHANGELOG.md](CHANGELOG.md) · [docs/releasing.md](docs/releasing.md).
+
+## Install (2-minute try)
+
+**Library + CLI** (Python ≥ 3.10):
+
+```bash
+pip install "pynanopore[viz]"
+pynanopore --version
+pynanopore detect path/to/recording.csv -o events.csv
+```
+
+Use the shipped example after cloning:
+
+```bash
+git clone https://github.com/jaybfn/Single-Molecule-Electrophysiology-Data-Analysis.git
+cd Single-Molecule-Electrophysiology-Data-Analysis
+pip install -e ".[viz]"
+pynanopore detect data/test.csv -o events.csv
+pynanopore dwelltime events.csv --fit single --method mle
+pynanopore psd data/test.csv --fit
+```
+
+**Full stack (UI + APIs):**
+
+```bash
+docker compose up --build
+```
+
+Then open http://localhost:8501 and click **Use example CSV**. Walkthrough: [docs/first_analysis.md](docs/first_analysis.md).
+
 ## Architecture
 
 Pynanopore is split into a **shared scientific core** and **stateless HTTP microservices**. Clients never call analysis services directly in the Compose deployment: they talk to the **gateway** (BFF), which routes requests, aggregates health, and keeps service URLs internal.
@@ -328,7 +359,12 @@ pyproject.toml
 
 Push/PR to `main` runs lint, typecheck, tests, and wheel build.
 
-Tagged releases (`v*`) publish to PyPI (Trusted Publishing) and push Docker images when secrets are configured (`DOCKER_USERNAME`, `DOCKER_PASSWORD`).
+Annotated tags matching `v*` (e.g. `v2.7.0`) run the same quality job, then:
+
+- **PyPI** — Trusted Publishing (`pypa/gh-action-pypi-publish`)
+- **Docker Hub** — gateway, event-service, stats-service, psd-service, web-ui (`:latest` and `:$TAG`) when `DOCKER_USERNAME` / `DOCKER_PASSWORD` are set
+
+See [docs/releasing.md](docs/releasing.md).
 
 ## License
 

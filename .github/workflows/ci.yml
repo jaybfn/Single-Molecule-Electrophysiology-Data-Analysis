@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
     branches: [main]
 
@@ -70,6 +71,19 @@ jobs:
     needs: quality
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image: pynanopore-gateway
+            file: services/gateway/Dockerfile
+          - image: pynanopore-event-service
+            file: services/event-service/Dockerfile
+          - image: pynanopore-stats-service
+            file: services/stats-service/Dockerfile
+          - image: pynanopore-psd-service
+            file: services/psd-service/Dockerfile
+          - image: pynanopore-web-ui
+            file: services/web-ui/Dockerfile
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -77,12 +91,12 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Build and push gateway
+      - name: Build and push ${{ matrix.image }}
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: services/gateway/Dockerfile
+          file: ${{ matrix.file }}
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/pynanopore-gateway:latest
-            ${{ secrets.DOCKER_USERNAME }}/pynanopore-gateway:${{ github.ref_name }}
+            ${{ secrets.DOCKER_USERNAME }}/${{ matrix.image }}:latest
+            ${{ secrets.DOCKER_USERNAME }}/${{ matrix.image }}:${{ github.ref_name }}
