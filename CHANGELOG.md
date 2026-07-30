@@ -5,6 +5,15 @@ All notable changes to **pynanopore** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Split **CI** vs **Release** workflows; PyPI publish gated on GitHub Environment `pypi`
+- `pip-audit` against `requirements.lock` on CI and Release
+- GHCR image pushes with SBOM + provenance; Docker Hub remains optional
+- `compose.prod.yml` (pinned `PYNANOPORE_TAG`), `deploy/Caddyfile`, [docs/hosted_demo.md](docs/hosted_demo.md)
+
 ## [2.7.1] — 2026-07-30
 
 ### Changed

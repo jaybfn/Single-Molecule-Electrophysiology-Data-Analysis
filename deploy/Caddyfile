@@ -1,0 +1,43 @@
+# Reverse proxy in front of compose.prod.yml (VM / VPS hosted demo).
+#
+# Expose only 80/443 publicly. Keep gateway/services on the Docker network;
+# publish web-ui (and optionally gateway /docs) via this proxy.
+#
+# Example:
+#   docker compose -f compose.prod.yml up -d
+#   caddy run --config deploy/Caddyfile
+#
+# Or add a `caddy` service that mounts this file and joins the compose network.
+
+{
+	email {$CADDY_ACME_EMAIL}
+}
+
+{$DEMO_DOMAIN:localhost} {
+	encode gzip
+
+	# Streamlit UI
+	handle /ui* {
+		uri strip_prefix /ui
+		reverse_proxy web-ui:8501
+	}
+
+	handle {
+		reverse_proxy web-ui:8501
+	}
+
+	# Optional: uncomment to expose OpenAPI (prefer auth / IP allowlist in real prod)
+	# handle_path /api* {
+	# 	reverse_proxy gateway:8000
+	# }
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	request_body {
+		max_size {$MAX_UPLOAD_MB:50}MB
+	}
+}

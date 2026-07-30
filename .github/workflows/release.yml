@@ -1,0 +1,145 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+# Safer releases: quality → audit → PyPI (GitHub Environment) → images (GHCR + optional Docker Hub).
+# Create GitHub Environment "pypi" (Settings → Environments) and add required reviewers / wait timer.
+# Update PyPI Trusted Publisher: Workflow = release.yml, Environment = pypi.
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint, typecheck, test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,viz,services]" -c requirements.lock
+      - run: ruff check packages services tests
+      - run: ruff format --check packages services tests
+      - run: mypy --python-version ${{ matrix.python-version }} packages/pynanopore/src/pynanopore
+      - run: pytest tests/ --cov=pynanopore --cov-report=term-missing
+      - name: Build wheel
+        run: |
+          pip install build
+          python -m build
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install --upgrade pip pip-audit
+      - run: pip-audit -r requirements.lock --progress-spinner off
+
+  publish:
+    name: Publish to PyPI
+    needs: [quality, audit]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+
+  docker:
+    name: Build and push images
+    needs: [quality, audit]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: pynanopore-gateway
+            file: services/gateway/Dockerfile
+          - image: pynanopore-event-service
+            file: services/event-service/Dockerfile
+          - image: pynanopore-stats-service
+            file: services/stats-service/Dockerfile
+          - image: pynanopore-psd-service
+            file: services/psd-service/Dockerfile
+          - image: pynanopore-web-ui
+            file: services/web-ui/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Normalize image owner (GHCR requires lowercase)
+        id: owner
+        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: ${{ secrets.DOCKER_USERNAME != '' && secrets.DOCKER_PASSWORD != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Collect image tags
+        id: tags
+        env:
+          DOCKERHUB_USER: ${{ secrets.DOCKER_USERNAME }}
+        run: |
+          set -euo pipefail
+          IMG="${{ matrix.image }}"
+          REF="${{ github.ref_name }}"
+          OWNER="${{ steps.owner.outputs.name }}"
+          TAGS="ghcr.io/${OWNER}/${IMG}:latest,ghcr.io/${OWNER}/${IMG}:${REF}"
+          if [ -n "${DOCKERHUB_USER}" ]; then
+            TAGS="${TAGS},${DOCKERHUB_USER}/${IMG}:latest,${DOCKERHUB_USER}/${IMG}:${REF}"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "Using tags: ${TAGS}"
+
+      - name: Build, attest, and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          provenance: mode=max
+          sbom: true

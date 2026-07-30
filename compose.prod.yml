@@ -1,0 +1,102 @@
+# Production-style stack: pull pre-built images (no local build).
+#
+# Default registry is GHCR. Override IMAGE_PREFIX for Docker Hub, e.g.:
+#   IMAGE_PREFIX=yourdockerhubuser PYNANOPORE_TAG=v2.7.1 docker compose -f compose.prod.yml up -d
+#
+# First-time GHCR pulls for private packages may need:
+#   echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+#
+# Pin a release (recommended):
+#   export PYNANOPORE_TAG=v2.7.1
+#   docker compose -f compose.prod.yml pull
+#   docker compose -f compose.prod.yml up -d
+
+x-common-env: &common-env
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_JSON: ${LOG_JSON:-true}
+  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-50}
+  HTTP_TIMEOUT_S: ${HTTP_TIMEOUT_S:-120}
+
+services:
+  event-service:
+    image: ${IMAGE_PREFIX:-ghcr.io/jaybfn}/pynanopore-event-service:${PYNANOPORE_TAG:-v2.7.1}
+    ports:
+      - "8001:8001"
+    environment:
+      <<: *common-env
+      SERVICE_NAME: event-service
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  stats-service:
+    image: ${IMAGE_PREFIX:-ghcr.io/jaybfn}/pynanopore-stats-service:${PYNANOPORE_TAG:-v2.7.1}
+    ports:
+      - "8002:8002"
+    environment:
+      <<: *common-env
+      SERVICE_NAME: stats-service
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  psd-service:
+    image: ${IMAGE_PREFIX:-ghcr.io/jaybfn}/pynanopore-psd-service:${PYNANOPORE_TAG:-v2.7.1}
+    ports:
+      - "8003:8003"
+    environment:
+      <<: *common-env
+      SERVICE_NAME: psd-service
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  gateway:
+    image: ${IMAGE_PREFIX:-ghcr.io/jaybfn}/pynanopore-gateway:${PYNANOPORE_TAG:-v2.7.1}
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *common-env
+      SERVICE_NAME: gateway
+      DOWNSTREAM_TIMEOUT_S: ${DOWNSTREAM_TIMEOUT_S:-120}
+      EVENT_SERVICE_URL: http://event-service:8001
+      STATS_SERVICE_URL: http://stats-service:8002
+      PSD_SERVICE_URL: http://psd-service:8003
+    depends_on:
+      event-service:
+        condition: service_healthy
+      stats-service:
+        condition: service_healthy
+      psd-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  web-ui:
+    image: ${IMAGE_PREFIX:-ghcr.io/jaybfn}/pynanopore-web-ui:${PYNANOPORE_TAG:-v2.7.1}
+    ports:
+      - "8501:8501"
+    environment:
+      GATEWAY_URL: http://gateway:8000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
