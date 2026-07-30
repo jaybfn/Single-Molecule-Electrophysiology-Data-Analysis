@@ -60,8 +60,8 @@ def _kmeans_1d(x: NDArray[np.floating], k: int, *, n_iter: int = 25) -> tuple[ND
         return np.zeros(len(x), dtype=int), np.array([float(np.mean(x))])
 
     qs = np.linspace(0, 100, k)
-    centers = np.percentile(x, qs).astype(float)
-    labels = np.zeros(len(x), dtype=int)
+    centers: NDArray[np.floating] = np.percentile(x, qs).astype(float)
+    labels: NDArray[np.integer] = np.zeros(len(x), dtype=int)
     for _ in range(n_iter):
         dist = np.abs(x[:, None] - centers[None, :])
         labels = np.argmin(dist, axis=1)
@@ -179,8 +179,8 @@ def idealize_multilevel(
     else:
         open_fill = float(np.median(trace.current))
 
-    idealized = np.full(n, open_fill, dtype=float)
-    level_code = np.zeros(n, dtype=int)
+    idealized: NDArray[np.floating] = np.full(n, open_fill, dtype=float)
+    level_code: NDArray[np.integer] = np.zeros(n, dtype=int)
 
     for ev in events:
         start = ev.start_idx if ev.start_idx >= 0 else int(ev.start_time * trace.sample_rate)

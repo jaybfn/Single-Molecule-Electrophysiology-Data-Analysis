@@ -187,6 +187,12 @@ def main(argv: list[str] | None = None) -> int:
             "scaling": args.scaling,
         }
         if args.fit:
+            fitter: (
+                CompositePSDFitter
+                | LorentzianWhiteFitter
+                | MultiLorentzianFitter
+                | LorentzianFitter
+            )
             if args.fit_model == "composite":
                 fitter = CompositePSDFitter(
                     frequencies, power_spectrum, max_frequency=args.max_frequency
@@ -207,15 +213,15 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 psd_result.update(fitter.fit())
             else:
-                lor = LorentzianFitter(
+                fitter = LorentzianFitter(
                     frequencies, power_spectrum, max_frequency=args.max_frequency
                 )
-                s0, fc = lor.fit_lorentzian()
+                s0, fc = fitter.fit_lorentzian()
                 psd_result["S0"] = s0
                 psd_result["fc"] = fc
-                fitter = lor
-            if getattr(fitter, "diagnostics", None):
-                psd_result["diagnostics"] = fitter.diagnostics.to_dict()
+            diagnostics = fitter.diagnostics
+            if diagnostics is not None:
+                psd_result["diagnostics"] = diagnostics.to_dict()
         print(json.dumps(psd_result, indent=2))
         return 0
 
