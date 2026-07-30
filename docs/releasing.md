@@ -35,7 +35,9 @@ You must register this repo as a trusted publisher on the existing
 
 If you see `invalid-publisher` / “no corresponding publisher”, the form values above do not match yet (wrong workflow name, environment mismatch, or publisher not saved).
 
-After fixing, **re-run** the failed “Publish to PyPI” job on the `v2.7.0` workflow (or delete + re-push the tag).
+After fixing, **re-run** the failed “Publish to PyPI” job on the tag workflow (or delete + re-push the tag).
+
+**Version must match the tag.** Tag `v2.7.1` must ship package version `2.7.1` in `_version.py` / `pyproject.toml`. PyPI never replaces an existing filename (`pynanopore-2.7.0-*.whl`); a tag that still builds `2.7.0` will 400 unless `skip-existing: true` (which skips upload — it does not create a new version).
 
 ## Tag and push
 

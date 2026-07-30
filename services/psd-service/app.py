@@ -26,7 +26,7 @@ settings = ServiceSettings(service_name="psd-service")
 
 app = FastAPI(
     title="Pynanopore PSD Service",
-    version="2.7.0",
+    version="2.7.1",
     description="Welch PSD estimation with Lorentzian / composite fits.",
 )
 configure_service(app, settings)

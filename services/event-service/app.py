@@ -27,7 +27,7 @@ settings = ServiceSettings(service_name="event-service")
 
 app = FastAPI(
     title="Pynanopore Event Service",
-    version="2.7.0",
+    version="2.7.1",
     description="Detect translocation events in ABF/CSV ion-current recordings.",
 )
 configure_service(app, settings)

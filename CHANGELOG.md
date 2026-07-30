@@ -5,6 +5,14 @@ All notable changes to **pynanopore** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.7.1] — 2026-07-30
+
+### Changed
+
+- README event-detection section rewritten in plain Unicode (readable without MathJax)
+- Math docs use `$` / `$$` delimiters for GitHub rendering
+- PyPI publish job sets `skip-existing: true` so re-runs of an already-uploaded version do not fail CI
+
 ## [2.7.0] — 2026-07-30
 
 First public tagged release: library on PyPI, Docker images for all Compose services, and a two-minute try path in the README.
@@ -38,4 +46,5 @@ Product UX: preview, analysis window, exports, tutorial.
 
 Production hardening: structured logging, healthchecks, lockfile.
 
+[2.7.1]: https://github.com/jaybfn/Single-Molecule-Electrophysiology-Data-Analysis/releases/tag/v2.7.1
 [2.7.0]: https://github.com/jaybfn/Single-Molecule-Electrophysiology-Data-Analysis/releases/tag/v2.7.0

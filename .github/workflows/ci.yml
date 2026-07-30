@@ -65,6 +65,9 @@ jobs:
           python -m build
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Re-running a tag (or tagging docs-only) must not fail if that version is already on PyPI.
+          skip-existing: true
 
   docker:
     name: Build and push Docker images
