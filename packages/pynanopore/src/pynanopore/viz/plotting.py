@@ -229,6 +229,126 @@ def plot_pulse_shape(
     return fig
 
 
+def plot_multi_level(
+    time: NDArray[np.floating],
+    current: NDArray[np.floating],
+    multilevel,
+    *,
+    title: str = "Ion current with multi-level idealization",
+) -> Any:
+    """
+    Plot raw current with multi-conductance idealization.
+
+    - Gray raw trace
+    - Black stepwise multi-level idealization
+    - Orange markers = level 1 (deeper blockade)
+    - Purple markers = level 2 (shallower / intermediate)
+    """
+    go = _require_plotly()
+    fig = go.Figure()
+
+    time_list = np.asarray(time, dtype=float).tolist()
+    current_list = np.asarray(current, dtype=float).tolist()
+    ideal = np.asarray(multilevel.idealized, dtype=float)
+    codes = np.asarray(multilevel.level_code, dtype=int)
+    t = np.asarray(multilevel.time, dtype=float)
+
+    fig.add_trace(
+        go.Scatter(
+            x=time_list,
+            y=current_list,
+            mode="lines",
+            name="Raw signal",
+            line=dict(color="rgba(80,80,80,0.65)", width=1),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=t.tolist(),
+            y=ideal.tolist(),
+            mode="lines",
+            name="Multi-level idealization",
+            line=dict(color="black", width=2, shape="hv"),
+        )
+    )
+
+    # Downsample markers for large traces
+    l1 = codes == 1
+    l2 = codes == 2
+    max_markers = 4000
+
+    def _sample_mask(mask: NDArray) -> NDArray:
+        idx = np.flatnonzero(mask)
+        if len(idx) <= max_markers:
+            return mask
+        step = max(1, len(idx) // max_markers)
+        keep = np.zeros_like(mask)
+        keep[idx[::step]] = True
+        return keep
+
+    m1 = _sample_mask(l1)
+    m2 = _sample_mask(l2)
+    if np.any(m1):
+        fig.add_trace(
+            go.Scatter(
+                x=t[m1].tolist(),
+                y=ideal[m1].tolist(),
+                mode="markers",
+                name="Level 1",
+                marker=dict(color="darkorange", size=5, symbol="circle"),
+            )
+        )
+    if np.any(m2):
+        fig.add_trace(
+            go.Scatter(
+                x=t[m2].tolist(),
+                y=ideal[m2].tolist(),
+                mode="markers",
+                name="Level 2",
+                marker=dict(color="mediumpurple", size=5, symbol="circle"),
+            )
+        )
+
+    if multilevel.events:
+        open_lvl = float(np.median([e.i0 for e in multilevel.events]))
+        fig.add_hline(
+            y=open_lvl,
+            line=dict(color="lightskyblue", width=1.5, dash="dash"),
+            annotation_text="Open pore (I0)",
+        )
+        l1_vals = [
+            float(e.level1_current)
+            for e in multilevel.events
+            if getattr(e, "n_levels", 1) >= 1 and np.isfinite(getattr(e, "level1_current", np.nan))
+        ]
+        l2_vals = [
+            float(e.level2_current)
+            for e in multilevel.events
+            if getattr(e, "n_levels", 1) >= 2 and np.isfinite(getattr(e, "level2_current", np.nan))
+        ]
+        if l1_vals:
+            fig.add_hline(
+                y=float(np.median(l1_vals)),
+                line=dict(color="darkorange", width=1.5, dash="dot"),
+                annotation_text="Level 1",
+            )
+        if l2_vals:
+            fig.add_hline(
+                y=float(np.median(l2_vals)),
+                line=dict(color="mediumpurple", width=1.5, dash="dot"),
+                annotation_text="Level 2",
+            )
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Time (s)",
+        yaxis_title="Current (pA)",
+        template="plotly_white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+    )
+    return fig
+
+
 def plot_dwelltime_histogram(fitter, fit_type=None) -> Any:
     go = _require_plotly()
     fig = go.Figure()

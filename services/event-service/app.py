@@ -21,7 +21,7 @@ from pynanopore import (
 )
 from pynanopore.serving import ServiceSettings, configure_service
 from pynanopore.serving.app_factory import enforce_upload_size
-from pynanopore.viz import Plotting, plot_pulse_shape
+from pynanopore.viz import Plotting, plot_multi_level, plot_pulse_shape
 
 settings = ServiceSettings(service_name="event-service")
 
@@ -41,6 +41,7 @@ class DetectResponse(BaseModel):
     events: list[dict[str, float]]
     plot: dict[str, Any] | None = None
     pulse_plot: dict[str, Any] | None = None
+    levels_plot: dict[str, Any] | None = None
     preview_time: list[float] | None = None
     preview_current: list[float] | None = None
     window_start_s: float | None = None
@@ -200,9 +201,11 @@ async def detect_events(
             plot_payload = fig.to_plotly_json()
 
         pulse_plot = None
+        levels_plot = None
         if include_pulse_plot and events:
             from dataclasses import replace
 
+            from pynanopore.detection.levels import idealize_multilevel
             from pynanopore.io.trace import Trace
 
             preview_trace = Trace(
@@ -223,6 +226,13 @@ async def detect_events(
             pulse_fig = plot_pulse_shape(preview_trace.time, preview_trace.current, pulse)
             pulse_plot = pulse_fig.to_plotly_json()
 
+            if analyze_levels and preview_events:
+                multilevel = idealize_multilevel(preview_trace, preview_events)
+                levels_fig = plot_multi_level(
+                    preview_trace.time, preview_trace.current, multilevel
+                )
+                levels_plot = levels_fig.to_plotly_json()
+
         return DetectResponse(
             request_id=request_id,
             n_events=len(event_dicts),
@@ -231,6 +241,7 @@ async def detect_events(
             events=event_dicts,
             plot=plot_payload,
             pulse_plot=pulse_plot,
+            levels_plot=levels_plot,
             preview_time=preview_time,
             preview_current=preview_current,
             window_start_s=window_start,
