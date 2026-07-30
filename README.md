@@ -20,7 +20,7 @@ see [docs/science_phase_e.md](docs/science_phase_e.md).
 **Dwell-time lifetime fitting** (MLE, AIC/BIC): see
 [docs/dwelltime_math.md](docs/dwelltime_math.md).
 
-**PSD models** (Welch, Lorentzian, composite \(1/f\)): see
+**PSD models** (Welch, Lorentzian, composite 1/f): see
 [docs/psd_math.md](docs/psd_math.md).
 
 **Batch multi-file pipelines**: see
@@ -160,106 +160,36 @@ sequenceDiagram
   GW-->>UI: PSD + Lorentzian params
 ```
 
-## Event detection mathematics
+## Event detection (overview)
 
-Full derivation, parameter guidance, and pulse-shape idealization are documented in
-**[docs/event_detection_math.md](docs/event_detection_math.md)**.
+Events use a **dual-threshold** rule on baseline-corrected current (events treated as downward), then store open-pore level *I₀*, relative blockade Δ*I*/*I₀*, area, and optional pulse-shape idealization.
 
-Summary: events are found with a dual-threshold rule on a baseline-corrected residual
-(canonicalized so events are downward), then characterized with \(I_0\), \(\Delta I/I_0\),
-area, and optional rectangular pulse idealization for visualization.
+Full equations and parameter guidance: **[docs/event_detection_math.md](docs/event_detection_math.md)**.
 
+### Dual thresholds
 
-### 1. Baseline statistics
+For each analysis chunk, estimate the open-pore mean **μ** and std **σ**. Multipliers `std_multiplier` (*k_std*, default **0.25**) and `threshold_multiplier` (*k_thr*, default **1.5**) set:
 
-For a chunk of \(N\) samples:
+| Level | Formula | Role |
+|-------|---------|------|
+| **T_entry** | μ − *k_std* · σ | Sensitive start / end crossings |
+| **T_deep** | μ − *k_thr* · σ | Must be reached to confirm a real blockade |
 
-\[
-\mu = \frac{1}{N}\sum_{n=1}^{N} I[n],
-\qquad
-\sigma = \sqrt{\frac{1}{N}\sum_{n=1}^{N}\bigl(I[n]-\mu\bigr)^{2}}
-\]
-
-Two downward thresholds are defined from user multipliers \(k_{\mathrm{std}}\) (`std_multiplier`) and \(k_{\mathrm{thr}}\) (`threshold_multiplier`):
-
-\[
-T_{\mathrm{entry}} = \mu - k_{\mathrm{std}}\,\sigma
-\qquad
-T_{\mathrm{deep}} = \mu - k_{\mathrm{thr}}\,\sigma
-\]
-
-Defaults are \(k_{\mathrm{std}}=0.25\) and \(k_{\mathrm{thr}}=1.5\), so \(T_{\mathrm{deep}} < T_{\mathrm{entry}} < \mu\) when \(\sigma>0\).  
-\(T_{\mathrm{entry}}\) is a **sensitive entry/exit** level; \(T_{\mathrm{deep}}\) is a **confirmation** level that rejects shallow noise spikes.
+So **T_deep** is below **T_entry**, which is below **μ**, when σ > 0. A candidate is kept only if it crosses below T_entry, visits T_deep, returns above T_entry, and dwell ≥ τ_min (default **0.1 ms**).
 
 ```text
 current I
    ^
    |  ──────── μ (open pore mean)
-   |    · · · · T_entry = μ − k_std σ     ← start / end crossings
-   |      · · · T_deep  = μ − k_thr σ     ← must be reached inside event
+   |    · · · · T_entry = μ − k_std · σ   ← start / end crossings
+   |      · · · T_deep  = μ − k_thr · σ   ← confirmation depth
    |         ╲___╱  blockade
    +------------------------------→ time
 ```
 
-### 2. State-machine detection rule
+Long recordings are split into chunks (`interval_length`, default **5 s**) with **local** μ, σ per chunk — good for slow drift; events that straddle chunk edges can be biased.
 
-Scanning samples \(n = 1\ldots N-1\):
-
-1. **Start candidate** when the signal crosses *below* the entry threshold:
-
-\[
-I[n-1] \ge T_{\mathrm{entry}} \quad\text{and}\quad I[n] < T_{\mathrm{entry}}
-\]
-
-Record \(t_{\mathrm{start}} = t[n]\) and index \(n_{\mathrm{start}}\).
-
-2. **Confirm depth** if, while a candidate is open,
-
-\[
-I[n] < T_{\mathrm{deep}}
-\]
-
-set a flag that the deep threshold was reached.
-
-3. **End candidate** when the signal crosses *back above* the entry threshold:
-
-\[
-I[n-1] < T_{\mathrm{entry}} \quad\text{and}\quad I[n] \ge T_{\mathrm{entry}}
-\]
-
-4. **Accept event** only if the deep threshold was reached **and** dwell time meets the minimum:
-
-\[
-\tau = t_{\mathrm{end}} - t_{\mathrm{start}} \ge \tau_{\min}
-\qquad (\tau_{\min}=10^{-4}\,\mathrm{s}\ \text{by default})
-\]
-
-For each accepted event the amplitude is the deepest current in the segment:
-
-\[
-A = \min_{n \in [n_{\mathrm{start}},\, n_{\mathrm{end}}]} I[n]
-\]
-
-Stored fields: `start_time`, `end_time`, `difference` (\(=\tau\)), `amplitude` (\(A\)).
-
-### 3. Chunking long recordings
-
-Long traces are split into windows of length \(\Delta t\) seconds (`interval_length`, default 5 s). With sample rate \(f_s\):
-
-\[
-N_{\mathrm{chunk}} = \lfloor f_s \cdot \Delta t \rfloor
-\]
-
-Detection runs independently on each chunk; events are concatenated. Thresholds \(\mu,\sigma\) are **local to each chunk**, which adapts to slow baseline drift but can bias events that straddle chunk boundaries.
-
-### 4. Why two thresholds?
-
-A single threshold tends to either (a) miss shallow true events or (b) accept noise. The dual-threshold rule is a simple hysteresis-style criterion:
-
-- cross \(T_{\mathrm{entry}}\) to mark possible on/off times with high sensitivity;
-- require a visit below \(T_{\mathrm{deep}}\) so only excursions with sufficient blockade depth are kept.
-
-This is the logic implemented in `EventDetector` (`packages/pynanopore/src/pynanopore/detection/events.py`).
+Implemented in `EventDetector` (`packages/pynanopore/src/pynanopore/detection/events.py`).
 
 ## Install (library + CLI)
 

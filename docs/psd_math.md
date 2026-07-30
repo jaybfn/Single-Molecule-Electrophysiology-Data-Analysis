@@ -4,8 +4,8 @@ Algorithms live in `packages/pynanopore/src/pynanopore/psd/`.
 
 ## 1. Welch PSD
 
-For a current trace \(I[n]\) sampled at \(f_s\), Welch’s method estimates the one-sided spectrum
-\(S(f)\) by averaging modified periodograms of overlapping segments.
+For a current trace $I[n]$ sampled at $f_s$, Welch’s method estimates the one-sided spectrum
+$S(f)$ by averaging modified periodograms of overlapping segments.
 
 Configurable knobs (via `PSDAnalyzer.compute_psd`):
 
@@ -19,27 +19,27 @@ Configurable knobs (via `PSDAnalyzer.compute_psd`):
 
 ## 2. Lorentzian (power-1)
 
-\[
+$$
 S(f) = \frac{S_0}{1 + (f / f_c)^2}
-\]
+$$
 
 Fit in log–log space with Trust Region Reflective least squares.
 Diagnostics:
 
-\[
+$$
 R^2_{\log} = 1 - \frac{\sum (y_i - \hat y_i)^2}{\sum (y_i - \bar y)^2},
 \quad y = \log_{10} S
-\]
+$$
 
 plus RMSE in log10 space.
 
-## 3. Composite Lorentzian + \(1/f^\alpha\)
+## 3. Composite Lorentzian + $1/f^\alpha$
 
-\[
+$$
 S(f) = \frac{S_0}{1 + (f / f_c)^2} + \frac{A}{f^{\alpha}}
-\]
+$$
 
-Same log-space residual fitting; returns \(S_0, f_c, A, \alpha\).
+Same log-space residual fitting; returns $S_0, f_c, A, \alpha$.
 
 ## 4. Usage
 
