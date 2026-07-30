@@ -61,6 +61,21 @@ def test_event_detector_emits_level_fields(synthetic_trace: Trace):
     assert "level1_current" in d
 
 
+def test_multilevel_idealization_and_plot(synthetic_trace: Trace):
+    from pynanopore.detection.levels import idealize_multilevel
+    from pynanopore.viz import plot_multi_level
+
+    events = EventDetector(0.5, 2.0, analyze_levels=True).detect_trace(
+        synthetic_trace, interval_length=1.0
+    )
+    assert events
+    ml = idealize_multilevel(synthetic_trace, events)
+    assert len(ml.idealized) == len(synthetic_trace.current)
+    assert set(np.unique(ml.level_code)).issubset({0, 1, 2})
+    fig = plot_multi_level(synthetic_trace.time, synthetic_trace.current, ml)
+    assert fig is not None
+
+
 def test_lorentzian_white_fit():
     rng = np.random.default_rng(1)
     f = np.logspace(1, 3.5, 200)
