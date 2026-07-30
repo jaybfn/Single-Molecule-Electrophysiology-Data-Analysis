@@ -100,9 +100,7 @@ def assign_event_levels(
     seg = np.asarray(segment, dtype=float)
     if len(seg) < min_samples or max_levels < 1:
         mean = float(np.mean(seg)) if len(seg) else float("nan")
-        feats = LevelFeatures(
-            n_levels=1.0, level1_current=mean, level1_fraction=1.0, level_rms=0.0
-        )
+        feats = LevelFeatures(n_levels=1.0, level1_current=mean, level1_fraction=1.0, level_rms=0.0)
         return LevelAssignment(
             features=feats,
             labels=np.zeros(len(seg), dtype=int),
@@ -163,9 +161,7 @@ def analyze_event_levels(
     Uses 1-D k-means with BIC to choose ``k ∈ {1, 2}`` (capped by ``max_levels``).
     Levels are ordered by increasing distance from the open-pore ``i0``.
     """
-    return assign_event_levels(
-        segment, i0, max_levels=max_levels, min_samples=min_samples
-    ).features
+    return assign_event_levels(segment, i0, max_levels=max_levels, min_samples=min_samples).features
 
 
 def idealize_multilevel(

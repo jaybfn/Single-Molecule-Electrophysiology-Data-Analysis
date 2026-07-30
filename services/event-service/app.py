@@ -228,9 +228,7 @@ async def detect_events(
 
             if analyze_levels and preview_events:
                 multilevel = idealize_multilevel(preview_trace, preview_events)
-                levels_fig = plot_multi_level(
-                    preview_trace.time, preview_trace.current, multilevel
-                )
+                levels_fig = plot_multi_level(preview_trace.time, preview_trace.current, multilevel)
                 levels_plot = levels_fig.to_plotly_json()
 
         return DetectResponse(

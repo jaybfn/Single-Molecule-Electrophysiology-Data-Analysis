@@ -330,9 +330,7 @@ See also `docs/first_analysis.md` in the repository.
 
         uploaded_file = st.file_uploader("Upload ABF or CSV", type=["abf", "csv"])
         if uploaded_file is not None:
-            st.session_state["upload"] = MemoryUpload(
-                uploaded_file.name, uploaded_file.getvalue()
-            )
+            st.session_state["upload"] = MemoryUpload(uploaded_file.name, uploaded_file.getvalue())
             # New file → clear analysis caches
             if st.session_state.get("upload_name") != uploaded_file.name:
                 st.session_state["upload_name"] = uploaded_file.name
@@ -361,9 +359,7 @@ See also `docs/first_analysis.md` in the repository.
 
         st.subheader("Detection")
         direction = st.selectbox("Event direction", ["down", "up"], index=0)
-        baseline = st.selectbox(
-            "Baseline", ["none", "median", "constant", "percentile"], index=0
-        )
+        baseline = st.selectbox("Baseline", ["none", "median", "constant", "percentile"], index=0)
         baseline_window = st.number_input(
             "Baseline window (s)", value=0.05, min_value=0.001, step=0.01
         )
@@ -422,9 +418,7 @@ See also `docs/first_analysis.md` in the repository.
             else:
                 with st.expander("1. Select analysis region", expanded=True):
                     st.plotly_chart(
-                        overview_figure(
-                            preview["time"], preview["current"], t_start, t_end
-                        ),
+                        overview_figure(preview["time"], preview["current"], t_start, t_end),
                         use_container_width=True,
                     )
                     span = t_max - t_min
@@ -518,9 +512,7 @@ See also `docs/first_analysis.md` in the repository.
                         c1, c2, c3, c4 = st.columns(4)
                         c1.metric("Events detected", result["n_events"])
                         c2.metric("Sample rate (Hz)", f"{result['sample_rate']:.2f}")
-                        c3.metric(
-                            "Analyzed duration (s)", round(result.get("duration_s", 0), 3)
-                        )
+                        c3.metric("Analyzed duration (s)", round(result.get("duration_s", 0), 3))
                         if result.get("window_start_s") is not None:
                             c4.metric(
                                 "Window (s)",
@@ -700,15 +692,11 @@ See also `docs/first_analysis.md` in the repository.
                 cols = st.columns(5)
                 cols[0].metric(
                     "S0",
-                    round(psd_result["S0"], 4)
-                    if psd_result.get("S0") is not None
-                    else "—",
+                    round(psd_result["S0"], 4) if psd_result.get("S0") is not None else "—",
                 )
                 cols[1].metric(
                     "fc (Hz)",
-                    round(psd_result["fc"], 2)
-                    if psd_result.get("fc") is not None
-                    else "—",
+                    round(psd_result["fc"], 2) if psd_result.get("fc") is not None else "—",
                 )
                 cols[2].metric(
                     "A",
@@ -716,9 +704,7 @@ See also `docs/first_analysis.md` in the repository.
                 )
                 cols[3].metric(
                     "alpha",
-                    round(psd_result["alpha"], 3)
-                    if psd_result.get("alpha") is not None
-                    else "—",
+                    round(psd_result["alpha"], 3) if psd_result.get("alpha") is not None else "—",
                 )
                 cols[4].metric(
                     "N",

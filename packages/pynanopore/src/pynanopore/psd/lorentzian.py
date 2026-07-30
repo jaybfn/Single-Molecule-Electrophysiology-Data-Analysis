@@ -266,7 +266,11 @@ class LorentzianWhiteFitter:
         self.filtered_frequencies, self.filtered_power_spectrum = _filter_psd(
             self.frequencies, self.power_spectrum, max_frequency=self.max_frequency
         )
-        s0_guess = float(np.median(self.filtered_power_spectrum[: max(3, len(self.filtered_power_spectrum) // 10)]))
+        s0_guess = float(
+            np.median(
+                self.filtered_power_spectrum[: max(3, len(self.filtered_power_spectrum) // 10)]
+            )
+        )
         n_guess = float(np.percentile(self.filtered_power_spectrum, 10))
         initial = np.array([max(s0_guess, 1e-6), 1e3, max(n_guess, 1e-12)])
         result = least_squares(
@@ -364,7 +368,9 @@ class MultiLorentzianFitter:
             self.frequencies, self.power_spectrum, max_frequency=self.max_frequency
         )
         s0_guess = float(
-            np.median(self.filtered_power_spectrum[: max(3, len(self.filtered_power_spectrum) // 10)])
+            np.median(
+                self.filtered_power_spectrum[: max(3, len(self.filtered_power_spectrum) // 10)]
+            )
         )
         f_lo = float(self.filtered_frequencies[0])
         f_hi = float(self.filtered_frequencies[-1])

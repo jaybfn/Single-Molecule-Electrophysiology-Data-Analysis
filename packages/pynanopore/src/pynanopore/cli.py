@@ -130,9 +130,7 @@ def main(argv: list[str] | None = None) -> int:
             std_multiplier=args.std_multiplier,
             threshold_multiplier=args.threshold_multiplier,
             direction=args.direction,
-            baseline=_make_baseline(
-                args.baseline, args.baseline_window, args.baseline_percentile
-            ),
+            baseline=_make_baseline(args.baseline, args.baseline_window, args.baseline_percentile),
             analyze_levels=not args.no_levels,
         )
         events = detector.detect_trace(trace, interval_length=args.interval, overlap=args.overlap)

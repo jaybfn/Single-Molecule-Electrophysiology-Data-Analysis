@@ -108,9 +108,7 @@ def _analyze(
             params = fitter.fit()
             s0, fc, a, alpha = params["S0"], params["fc"], params["A"], params["alpha"]
         elif fit_model == "lorentzian_white":
-            fitter = LorentzianWhiteFitter(
-                frequencies, power_spectrum, max_frequency=max_frequency
-            )
+            fitter = LorentzianWhiteFitter(frequencies, power_spectrum, max_frequency=max_frequency)
             params = fitter.fit()
             s0, fc, n_floor = params["S0"], params["fc"], params["N"]
         elif fit_model == "double_lorentzian":

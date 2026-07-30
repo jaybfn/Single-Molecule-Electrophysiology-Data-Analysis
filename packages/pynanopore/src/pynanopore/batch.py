@@ -101,13 +101,9 @@ def _process_one_file(payload: dict[str, Any]) -> dict[str, Any]:
                 if len(df) and "delta_i_over_i0" in df.columns
                 else None
             ),
-            "median_area": float(df["area"].median())
-            if len(df) and "area" in df.columns
-            else None,
+            "median_area": float(df["area"].median()) if len(df) and "area" in df.columns else None,
             "frac_multilevel": (
-                float((df["n_levels"] > 1).mean())
-                if len(df) and "n_levels" in df.columns
-                else None
+                float((df["n_levels"] > 1).mean()) if len(df) and "n_levels" in df.columns else None
             ),
             "events_csv": str(out_csv.relative_to(out_dir)),
             "error": None,
