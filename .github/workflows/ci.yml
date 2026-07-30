@@ -3,7 +3,6 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
     branches: [main]
 
@@ -47,59 +46,16 @@ jobs:
           pip install build
           python -m build
 
-  publish:
-    name: Publish to PyPI
-    needs: quality
-    if: startsWith(github.ref, 'refs/tags/v')
+  audit:
+    name: Dependency audit
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Build
-        run: |
-          python -m pip install --upgrade pip build
-          python -m build
-      - name: Publish
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          # Re-running a tag (or tagging docs-only) must not fail if that version is already on PyPI.
-          skip-existing: true
-
-  docker:
-    name: Build and push Docker images
-    needs: quality
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - image: pynanopore-gateway
-            file: services/gateway/Dockerfile
-          - image: pynanopore-event-service
-            file: services/event-service/Dockerfile
-          - image: pynanopore-stats-service
-            file: services/stats-service/Dockerfile
-          - image: pynanopore-psd-service
-            file: services/psd-service/Dockerfile
-          - image: pynanopore-web-ui
-            file: services/web-ui/Dockerfile
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Build and push ${{ matrix.image }}
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ${{ matrix.file }}
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/${{ matrix.image }}:latest
-            ${{ secrets.DOCKER_USERNAME }}/${{ matrix.image }}:${{ github.ref_name }}
+          cache: pip
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip pip-audit
+      - name: Audit lockfile
+        run: pip-audit -r requirements.lock --progress-spinner off

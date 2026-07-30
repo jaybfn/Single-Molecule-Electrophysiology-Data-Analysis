@@ -225,9 +225,22 @@ events = EventDetector(0.25, 1.5).detect_trace(trace)
 
 ## Run microservices (Docker Compose)
 
+**Dev (build from source):**
+
 ```bash
 docker compose up --build
 ```
+
+**Prod / demo (pull pinned images from GHCR):**
+
+```bash
+export PYNANOPORE_TAG=v2.7.1
+docker compose -f compose.prod.yml pull
+docker compose -f compose.prod.yml up -d
+```
+
+Docker Hub instead of GHCR: `export IMAGE_PREFIX=yourdockerhubuser` before `pull`.  
+Hosted demo (VM + Caddy): [docs/hosted_demo.md](docs/hosted_demo.md).
 
 - UI: http://localhost:8501  
 - Gateway OpenAPI: http://localhost:8000/docs  
@@ -287,14 +300,14 @@ pyproject.toml
 
 ## CI / releases
 
-Push/PR to `main` runs lint, typecheck, tests, and wheel build.
+| Workflow | When | What |
+|----------|------|------|
+| **CI** | push/PR → `main` | lint, typecheck, tests, wheel build, `pip-audit` |
+| **Release** | tag `v*` | same quality + audit → PyPI (GitHub Environment `pypi`) → images |
 
-Annotated tags matching `v*` (e.g. `v2.7.0`) run the same quality job, then:
+Images are pushed to **GHCR** (`ghcr.io/jaybfn/pynanopore-*`) with SBOM + provenance attestations. **Docker Hub** is optional (`DOCKER_USERNAME` / `DOCKER_PASSWORD`).
 
-- **PyPI** — Trusted Publishing (`pypa/gh-action-pypi-publish`)
-- **Docker Hub** — gateway, event-service, stats-service, psd-service, web-ui (`:latest` and `:$TAG`) when `DOCKER_USERNAME` / `DOCKER_PASSWORD` are set
-
-See [docs/releasing.md](docs/releasing.md).
+Pin deploys with `PYNANOPORE_TAG=vX.Y.Z` and [`compose.prod.yml`](compose.prod.yml). Full checklist: [docs/releasing.md](docs/releasing.md).
 
 ## License
 

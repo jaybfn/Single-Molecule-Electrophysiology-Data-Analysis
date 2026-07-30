@@ -2,67 +2,82 @@
 
 Checklist for shipping a versioned release (`vX.Y.Z`).
 
+## Workflows
+
+| Workflow | Trigger | Jobs |
+|----------|---------|------|
+| [`ci.yml`](../.github/workflows/ci.yml) | push/PR to `main` | quality (lint/mypy/tests) + `pip-audit` |
+| [`release.yml`](../.github/workflows/release.yml) | tag `v*` | quality + audit → **PyPI** (`environment: pypi`) → **GHCR** (+ optional Docker Hub) with SBOM/provenance |
+
 ## Before tagging
 
 1. **Version** — bump in lockstep:
    - `packages/pynanopore/src/pynanopore/_version.py`
    - `pyproject.toml` (`[project].version`)
    - FastAPI `version=` on gateway + analysis services
-2. **CHANGELOG.md** — add a section for the new version (what users care about).
-3. **CI green on `main`** — lint, mypy, tests, wheel build.
-4. **Publish credentials** (one-time) — see below.
-5. **Docker Hub** — repository secrets `DOCKER_USERNAME` and `DOCKER_PASSWORD` (or access token).
+2. **CHANGELOG.md** — add a section for the new version.
+3. **CI green on `main`** — both `quality` and `audit`.
+4. **One-time publish setup** — below.
+5. **Version must match the tag.** Tag `v2.7.1` must ship package `2.7.1`. PyPI never replaces an existing wheel filename.
 
-### PyPI Trusted Publishing (required for tag publish)
+## One-time setup
 
-The `publish` job uses OIDC (`id-token: write`) — **no** `PYPI_API_TOKEN` secret.
-You must register this repo as a trusted publisher on the existing
-[pynanopore](https://pypi.org/project/pynanopore/) project.
+### 1. GitHub Environment `pypi`
 
-1. Sign in as the PyPI owner of `pynanopore`.
-2. Open **Publishing**: https://pypi.org/manage/project/pynanopore/settings/publishing/
-3. Under **Add a new publisher**, use **exactly**:
+1. Repo → **Settings → Environments → New environment** → name: `pypi`
+2. Add **Required reviewers** and/or a **wait timer** so a bad tag cannot publish alone.
+3. No secrets are required for Trusted Publishing (OIDC).
+
+### 2. PyPI Trusted Publisher
+
+Update (or add) the publisher at  
+https://pypi.org/manage/project/pynanopore/settings/publishing/
 
 | Field | Value |
 |-------|--------|
 | PyPI Project Name | `pynanopore` |
 | Owner | `jaybfn` |
 | Repository name | `Single-Molecule-Electrophysiology-Data-Analysis` |
-| Workflow name | `ci.yml` (filename only, not “CI”) |
-| Environment name | *(leave empty)* |
+| Workflow name | `release.yml` (not `ci.yml`) |
+| Environment name | `pypi` |
 
-4. Save. Claims from a failed run should then match (`environment: MISSING` is expected when Environment is blank).
+Remove or leave inactive any old publisher that pointed at `ci.yml` with an empty environment.
 
-If you see `invalid-publisher` / “no corresponding publisher”, the form values above do not match yet (wrong workflow name, environment mismatch, or publisher not saved).
+### 3. Container registries
 
-After fixing, **re-run** the failed “Publish to PyPI” job on the tag workflow (or delete + re-push the tag).
-
-**Version must match the tag.** Tag `v2.7.1` must ship package version `2.7.1` in `_version.py` / `pyproject.toml`. PyPI never replaces an existing filename (`pynanopore-2.7.0-*.whl`); a tag that still builds `2.7.0` will 400 unless `skip-existing: true` (which skips upload — it does not create a new version).
+- **GHCR** — enabled automatically (`packages: write` + `GITHUB_TOKEN`). After the first push, set package visibility (public recommended for `compose.prod.yml` pulls).
+- **Docker Hub** (optional) — repo secrets `DOCKER_USERNAME` / `DOCKER_PASSWORD`. If unset, Release still pushes GHCR only.
 
 ## Tag and push
 
-From a clean `main` (after merging the version bump):
-
 ```bash
-git tag -a v2.7.0 -m "pynanopore 2.7.0"
 git push origin main
-git push origin v2.7.0
+git tag -a v2.7.2 -m "pynanopore 2.7.2"
+git push origin v2.7.2
 ```
 
-Pushing `v*` runs the CI `publish` (PyPI) and `docker` (Hub) jobs after `quality` passes.
+Approve the `pypi` environment deployment when prompted, then confirm Release workflow jobs are green.
 
 ## Verify
 
-- [ ] GitHub Actions: tag workflow green
-- [ ] PyPI: https://pypi.org/project/pynanopore/ (expect 2.7.0 after this release)
-- [ ] Install: `pip install pynanopore==2.7.0` then `pynanopore --version`
-- [ ] Docker Hub images tagged `:v2.7.0` and `:latest` for gateway, event/stats/psd services, web-ui
-- [ ] Optional GitHub Release notes from `CHANGELOG.md`
+- [ ] Release workflow: quality, audit, publish, docker all green
+- [ ] PyPI: `pip install pynanopore==X.Y.Z` → `pynanopore --version`
+- [ ] GHCR: `ghcr.io/jaybfn/pynanopore-gateway:vX.Y.Z` (and sibling images)
+- [ ] Optional Docker Hub tags
+- [ ] `PYNANOPORE_TAG=vX.Y.Z docker compose -f compose.prod.yml pull`
+
+## Prod / demo images
+
+```bash
+export PYNANOPORE_TAG=v2.7.1
+docker compose -f compose.prod.yml pull
+docker compose -f compose.prod.yml up -d
+```
+
+Hosted demo notes: [hosted_demo.md](hosted_demo.md).
 
 ## Optional GitHub Release
 
 ```bash
-gh release create v2.7.0 --title "pynanopore 2.7.0" --notes-file CHANGELOG.md
+gh release create v2.7.1 --title "pynanopore 2.7.1" --notes-file CHANGELOG.md
 ```
-
-(Or paste the `## [2.7.0]` section only.)
